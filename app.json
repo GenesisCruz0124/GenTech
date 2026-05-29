@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "GenTech",
+    "slug": "gentech-repair",
+    "version": "1.0.0",
+    "scheme": "gentech",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.gentech.repairshop",
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gentech.repairshop"
+    },
+    "plugins": [
+      "expo-sqlite"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "5c72a796-3aaf-41b6-9740-8cc2043e8d60"
+      }
+    }
+  }
+}
