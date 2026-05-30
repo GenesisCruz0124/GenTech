@@ -2,7 +2,7 @@
   "expo": {
     "name": "GenTech",
     "slug": "gentech-repair",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scheme": "gentech",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.gentech.repairshop"
     },
     "plugins": [
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-image-picker"
     ],
     "extra": {
       "eas": {
