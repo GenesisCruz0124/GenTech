@@ -124,6 +124,19 @@ export async function updateRepairStatus(id: number, status: RepairStatus): Prom
 export async function markNotRepaired(id: number): Promise<void> {
   const db = await getDB();
   const now = new Date().toISOString();
+
+  // Restore inventory for all parts used in this repair
+  const usedParts = await db.getAllAsync<{ part_id: number; quantity: number }>(
+    'SELECT part_id, quantity FROM repair_parts WHERE repair_id = ?',
+    [id]
+  );
+  for (const p of usedParts) {
+    await db.runAsync(
+      'UPDATE parts SET quantity = quantity + ?, updated_at = ? WHERE id = ?',
+      [p.quantity, now, p.part_id]
+    );
+  }
+
   await db.runAsync(
     `UPDATE repairs SET status = 'not_repaired', is_paid = 0, updated_at = ? WHERE id = ?`,
     [now, id]

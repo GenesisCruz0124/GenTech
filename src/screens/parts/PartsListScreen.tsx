@@ -25,6 +25,7 @@ export default function PartsListScreen() {
   const [restockQty, setRestockQty] = useState('');
   const [restockCost, setRestockCost] = useState('');
   const [restockSupplier, setRestockSupplier] = useState('');
+  const [restockDate, setRestockDate] = useState('');
   const [restockNotes, setRestockNotes] = useState('');
   const [restockImage, setRestockImage] = useState<string | null>(null);
   const [restockSaving, setRestockSaving] = useState(false);
@@ -69,6 +70,7 @@ export default function PartsListScreen() {
     setRestockQty('');
     setRestockCost(String(part.cost_price));
     setRestockSupplier('');
+    setRestockDate(new Date().toISOString().split('T')[0]);
     setRestockNotes('');
     setRestockImage(null);
   };
@@ -117,6 +119,7 @@ export default function PartsListScreen() {
       supplier_name: restockSupplier.trim() || undefined,
       notes: restockNotes.trim() || undefined,
       image_uri: restockImage || undefined,
+      purchased_at: restockDate || undefined,
     });
     await fetchParts();
     setRestockSaving(false);
@@ -268,6 +271,7 @@ export default function PartsListScreen() {
             <Text style={styles.modalTitle}>Restock — {restockTarget?.name}</Text>
             <TextInput label="Quantity *" value={restockQty} onChangeText={setRestockQty} mode="outlined" style={styles.input} keyboardType="numeric" />
             <TextInput label="Cost Paid per Unit (₱)" value={restockCost} onChangeText={setRestockCost} mode="outlined" style={styles.input} keyboardType="decimal-pad" />
+            <TextInput label="Date of Purchase" value={restockDate} onChangeText={setRestockDate} mode="outlined" style={styles.input} placeholder="YYYY-MM-DD" />
             <TextInput label="Supplier Name (optional)" value={restockSupplier} onChangeText={setRestockSupplier} mode="outlined" style={styles.input} />
             <TextInput label="Notes (optional)" value={restockNotes} onChangeText={setRestockNotes} mode="outlined" style={styles.input} />
             <Text style={styles.inputLabel}>Receipt / Photo (optional)</Text>

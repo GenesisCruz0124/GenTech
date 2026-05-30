@@ -25,6 +25,7 @@ import {
 } from '../../repositories/repairImageRepository';
 import MultiImagePicker from '../../components/common/MultiImagePicker';
 import ImagePickerField from '../../components/common/ImagePickerField';
+import DatePickerField from '../../components/common/DatePickerField';
 import StatusBadge from '../../components/repairs/StatusBadge';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Colors } from '../../constants/colors';
@@ -237,6 +238,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
+            <Text style={styles.repairNo}>RPN-{String(repair.id).padStart(4, '0')}</Text>
             <Text style={styles.device}>{repair.device_model}</Text>
             <Text style={styles.customer}>{repair.customer_name} · {repair.customer_phone}</Text>
           </View>
@@ -462,7 +464,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Add Payment</Text>
             <TextInput label="Amount (₱) *" value={paymentAmount} onChangeText={setPaymentAmount} mode="outlined" style={styles.modalInput} keyboardType="decimal-pad" />
-            <TextInput label="Payment Date *" value={paymentDate} onChangeText={setPaymentDate} mode="outlined" style={styles.modalInput} placeholder="YYYY-MM-DD" />
+            <DatePickerField label="Payment Date *" value={paymentDate} onChange={setPaymentDate} />
             <Text style={styles.modeLabel}>Mode of Payment</Text>
             <View style={styles.modeChips}>
               {PAYMENT_MODES.map(m => (
@@ -488,7 +490,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Mark as Delivered — Payment</Text>
             <TextInput label="Amount Received (₱)" value={deliverAmount} onChangeText={setDeliverAmount} mode="outlined" style={styles.modalInput} keyboardType="decimal-pad" />
-            <TextInput label="Payment Date" value={deliverDate} onChangeText={setDeliverDate} mode="outlined" style={styles.modalInput} placeholder="YYYY-MM-DD" />
+            <DatePickerField label="Payment Date" value={deliverDate} onChange={setDeliverDate} />
             <Text style={styles.modeLabel}>Mode of Payment</Text>
             <View style={styles.modeChips}>
               {PAYMENT_MODES.map(m => (
@@ -674,6 +676,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   headerLeft: { flex: 1 },
   headerActions: { flexDirection: 'row' },
+  repairNo: { fontSize: 12, fontWeight: '700', color: Colors.primary, letterSpacing: 1, marginBottom: 2 },
   device: { fontSize: 20, fontWeight: 'bold', color: Colors.text },
   customer: { fontSize: 14, color: Colors.textSecondary, marginTop: 2 },
   divider: { marginVertical: 12 },

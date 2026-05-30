@@ -27,7 +27,8 @@
           "photosPermission": "Allow GenTech to access your photos.",
           "cameraPermission": "Allow GenTech to use your camera to capture device photos."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {

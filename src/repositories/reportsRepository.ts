@@ -20,6 +20,8 @@ export interface TotalSummary {
   total_revenue: number;
   total_expense: number;
   total_paid: number;
+  unpaid_count: number;
+  unpaid_amount: number;
 }
 
 function periodFormat(period: ReportPeriod): string {
@@ -147,16 +149,33 @@ export async function getRepairsByIssue(period: ReportPeriod): Promise<IssueCoun
 }
 
 export async function getTotalSummary(period: ReportPeriod): Promise<TotalSummary> {
+  const db = await getDB();
   const rows = await getReportSummary(period);
   const r2 = (n: number) => Math.round(n * 100) / 100;
-  return rows.reduce<TotalSummary>(
+
+  // Unpaid repairs: delivered or in-progress but is_paid = 0
+  const unpaidRow = await db.getFirstAsync<{ count: number; amount: number }>(
+    `SELECT COUNT(*) as count,
+            COALESCE(SUM(COALESCE(final_cost, estimated_cost)), 0) -
+            COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0) as amount
+     FROM repairs r
+     WHERE r.is_paid = 0 AND r.status != 'not_repaired'`
+  );
+
+  const base = rows.reduce<TotalSummary>(
     (acc, r) => ({
       gross_income:  r2(acc.gross_income  + r.gross_income),
       net_income:    r2(acc.net_income    + r.net_income),
       total_revenue: r2(acc.total_revenue + r.gross_income),
       total_expense: r2(acc.total_expense + r.total_expense),
       total_paid:    r2(acc.total_paid    + r.total_paid),
+      unpaid_count:  0,
+      unpaid_amount: 0,
     }),
-    { gross_income: 0, net_income: 0, total_revenue: 0, total_expense: 0, total_paid: 0 }
+    { gross_income: 0, net_income: 0, total_revenue: 0, total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0 }
   );
+
+  base.unpaid_count  = unpaidRow?.count ?? 0;
+  base.unpaid_amount = r2(unpaidRow?.amount ?? 0);
+  return base;
 }

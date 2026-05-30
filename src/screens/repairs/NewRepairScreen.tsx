@@ -25,6 +25,8 @@ import { useRepairStore } from '../../store/repairStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { getAllIssues, Issue } from '../../repositories/issueRepository';
 import { Customer, searchCustomers } from '../../repositories/customerRepository';
+import { Part, getAllParts } from '../../repositories/partsRepository';
+import { addRepairPart } from '../../repositories/partsRepository';
 import { Colors } from '../../constants/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NewRepair'>;
@@ -49,7 +51,15 @@ export default function NewRepairScreen({ navigation }: Props) {
   const [suggestions, setSuggestions] = useState<Customer[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  useEffect(() => { getAllIssues().then(setIssues); }, []);
+  // Parts required
+  const [allParts, setAllParts] = useState<Part[]>([]);
+  const [selectedParts, setSelectedParts] = useState<{ part: Part; qty: number }[]>([]);
+  const [partPickerVisible, setPartPickerVisible] = useState(false);
+
+  useEffect(() => {
+    getAllIssues().then(setIssues);
+    getAllParts().then(setAllParts);
+  }, []);
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -120,9 +130,13 @@ export default function NewRepairScreen({ navigation }: Props) {
         estimated_cost: parseFloat(data.estimatedCost),
         notes: data.notes || undefined,
       });
-      // Save all selected photos
+      // Save photos
       for (const uri of photos) {
         await saveRepairImage(repairId, uri);
+      }
+      // Deduct parts from inventory
+      for (const { part, qty } of selectedParts) {
+        await addRepairPart(repairId, part.id, qty, part.selling_price);
       }
       navigation.replace('RepairDetail', { repairId });
     } catch (e) {
@@ -239,6 +253,54 @@ export default function NewRepairScreen({ navigation }: Props) {
           })}
         </View>
 
+        {/* Parts Required */}
+        <Text style={styles.section}>Parts Required</Text>
+        {selectedParts.map(({ part, qty }) => (
+          <View key={part.id} style={styles.partRow}>
+            <View style={styles.partInfo}>
+              <Text style={styles.partName}>{part.name}</Text>
+              <Text style={styles.partMeta}>
+                {part.quantity} in stock · ₱{part.selling_price}
+              </Text>
+            </View>
+            <View style={styles.partQtyRow}>
+              <TouchableOpacity onPress={() => setSelectedParts(p => p.map(x => x.part.id === part.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))}>
+                <MaterialCommunityIcons name="minus-circle-outline" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.partQty}>{qty}</Text>
+              <TouchableOpacity onPress={() => setSelectedParts(p => p.map(x => x.part.id === part.id ? { ...x, qty: Math.min(x.part.quantity, x.qty + 1) } : x))}>
+                <MaterialCommunityIcons name="plus-circle-outline" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setSelectedParts(p => p.filter(x => x.part.id !== part.id))} style={{ marginLeft: 8 }}>
+                <MaterialCommunityIcons name="close-circle-outline" size={22} color={Colors.error} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+        <Button mode="outlined" icon="plus" onPress={() => setPartPickerVisible(true)} style={styles.addPartBtn}>
+          Add Part
+        </Button>
+        {partPickerVisible && (
+          <View style={styles.partPicker}>
+            {allParts.filter(p => p.quantity > 0 && !selectedParts.find(s => s.part.id === p.id)).map(part => (
+              <TouchableOpacity
+                key={part.id}
+                style={styles.partPickerItem}
+                onPress={() => {
+                  setSelectedParts(prev => [...prev, { part, qty: 1 }]);
+                  setPartPickerVisible(false);
+                }}
+              >
+                <Text style={styles.partName}>{part.name}</Text>
+                <Text style={styles.partMeta}>{part.quantity} in stock · ₱{part.selling_price}</Text>
+              </TouchableOpacity>
+            ))}
+            {allParts.filter(p => p.quantity > 0 && !selectedParts.find(s => s.part.id === p.id)).length === 0 && (
+              <Text style={styles.partMeta}>No available parts in stock.</Text>
+            )}
+          </View>
+        )}
+
         <Text style={styles.section}>Photos</Text>
         <MultiImagePicker images={photos} onChange={setPhotos} maxImages={6} />
 
@@ -284,6 +346,15 @@ const styles = StyleSheet.create({
   cameraHint: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4, fontStyle: 'italic' },
   selectedBadge: { backgroundColor: Colors.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: Colors.primary },
   selectedText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+  partRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 8, padding: 10, marginBottom: 6 },
+  partInfo: { flex: 1 },
+  partName: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  partMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  partQtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  partQty: { fontSize: 16, fontWeight: '700', color: Colors.primary, minWidth: 20, textAlign: 'center' },
+  addPartBtn: { marginBottom: 8, borderRadius: 8 },
+  partPicker: { backgroundColor: Colors.surface, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, marginBottom: 8, overflow: 'hidden' },
+  partPickerItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   issueChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   issueChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   issueChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },

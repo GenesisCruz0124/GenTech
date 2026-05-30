@@ -45,7 +45,7 @@ const PERIODS: { value: ReportPeriod; label: string }[] = [
 export default function ReportsScreen() {
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [rows, setRows] = useState<PeriodReport[]>([]);
-  const [summary, setSummary] = useState<TotalSummary>({ gross_income: 0, net_income: 0, total_revenue: 0, total_expense: 0, total_paid: 0 });
+  const [summary, setSummary] = useState<TotalSummary>({ gross_income: 0, net_income: 0, total_revenue: 0, total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0 });
   const [issueCounts, setIssueCounts] = useState<IssueCount[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -100,6 +100,13 @@ export default function ReportsScreen() {
         <View style={[styles.card, styles.cardSmall, { borderLeftColor: Colors.info }]}>
           <Text style={[styles.cardAmountSm, { color: Colors.info }]}>{formatCurrency(summary.total_paid)}</Text>
           <Text style={styles.cardLabel}>Total Paid (Collected)</Text>
+        </View>
+      </View>
+      <View style={styles.cardsRow}>
+        <View style={[styles.card, styles.cardSmall, { borderLeftColor: Colors.warning }]}>
+          <Text style={[styles.cardAmountSm, { color: Colors.warning }]}>{summary.unpaid_count} repairs</Text>
+          <Text style={[styles.cardAmountSm, { color: Colors.warning, fontSize: 14 }]}>{formatCurrency(summary.unpaid_amount)}</Text>
+          <Text style={styles.cardLabel}>For Collection (Unpaid)</Text>
         </View>
       </View>
 

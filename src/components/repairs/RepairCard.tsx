@@ -17,6 +17,7 @@ export default function RepairCard({ repair, onPress }: RepairCardProps) {
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
       <View style={styles.row}>
         <View style={styles.info}>
+          <Text style={styles.repairNo}>RPN-{String(repair.id).padStart(4, '0')}</Text>
           <Text style={styles.device}>{repair.device_model}</Text>
           <Text style={styles.customer}>{repair.customer_name} · {repair.customer_phone}</Text>
           <Text style={styles.issue} numberOfLines={1}>{repair.issue_desc}</Text>
@@ -55,6 +56,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  repairNo: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 0.8, marginBottom: 1 },
   device: {
     fontSize: 16,
     fontWeight: '600',

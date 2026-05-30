@@ -114,12 +114,14 @@ export async function recordPartsPurchase(input: {
   supplier_name?: string;
   notes?: string;
   image_uri?: string;
+  purchased_at?: string;
 }): Promise<void> {
   const db = await getDB();
+  const purchased_at = input.purchased_at || new Date().toISOString().split('T')[0];
   await db.runAsync(
-    `INSERT INTO parts_purchases (part_id, quantity, cost_price, supplier_name, notes, image_uri)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.part_id, input.quantity, input.cost_price, input.supplier_name ?? null, input.notes ?? null, input.image_uri ?? null]
+    `INSERT INTO parts_purchases (part_id, quantity, cost_price, supplier_name, notes, image_uri, purchased_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [input.part_id, input.quantity, input.cost_price, input.supplier_name ?? null, input.notes ?? null, input.image_uri ?? null, purchased_at]
   );
   await adjustStock(input.part_id, input.quantity);
   // Always keep the part's cost_price in sync with the latest purchase
