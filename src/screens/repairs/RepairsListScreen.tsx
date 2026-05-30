@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import { FAB, Searchbar, SegmentedButtons } from 'react-native-paper';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { FAB, Searchbar, Text } from 'react-native-paper';
+import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../navigation/types';
+import { RootStackParamList, TabParamList } from '../../navigation/types';
 import { useRepairStore } from '../../store/repairStore';
 import RepairCard from '../../components/repairs/RepairCard';
 import EmptyState from '../../components/common/EmptyState';
@@ -11,29 +11,46 @@ import { Colors } from '../../constants/colors';
 import { RepairStatus } from '../../constants/statusOptions';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type RepairsRoute = RouteProp<TabParamList, 'Repairs'>;
 
-const STATUS_FILTERS = [
-  { value: '', label: 'All' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'ready', label: 'Ready' },
-  { value: 'delivered', label: 'Done' },
+type FilterValue = RepairStatus | '' | 'not_paid';
+
+const STATUS_FILTERS: { value: FilterValue; label: string; color?: string }[] = [
+  { value: '',             label: 'All' },
+  { value: 'pending',      label: 'Pending' },
+  { value: 'in_progress',  label: 'In Progress' },
+  { value: 'ready',        label: 'Ready' },
+  { value: 'delivered',    label: 'Delivered' },
+  { value: 'not_repaired', label: 'Not Repaired', color: Colors.error },
+  { value: 'not_paid',     label: 'Not Paid',     color: Colors.warning },
 ];
 
 export default function RepairsListScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<RepairsRoute>();
   const { repairs, isLoading, fetchRepairs } = useRepairStore();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [filter, setFilter] = useState<FilterValue>('');
 
   const load = useCallback(() => {
-    fetchRepairs({
-      status: (statusFilter as RepairStatus) || undefined,
-      search: search || undefined,
-    });
-  }, [statusFilter, search]);
+    if (filter === 'not_paid') {
+      fetchRepairs({ not_paid: true, search: search || undefined });
+    } else {
+      fetchRepairs({
+        status: (filter as RepairStatus) || undefined,
+        search: search || undefined,
+      });
+    }
+  }, [filter, search]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    const incoming = route.params?.initialFilter as FilterValue | undefined;
+    if (incoming && incoming !== filter) {
+      setFilter(incoming);
+    } else {
+      load();
+    }
+  }, [route.params]));
 
   return (
     <View style={styles.container}>
@@ -44,28 +61,24 @@ export default function RepairsListScreen() {
         onSubmitEditing={load}
         style={styles.search}
       />
-      <FlatList
-        data={STATUS_FILTERS.slice(0, 4)}
-        horizontal
-        keyExtractor={i => i.value}
-        renderItem={({ item }) => null}
-        ListHeaderComponent={
-          <View style={styles.filterRow}>
-            {STATUS_FILTERS.map(f => (
-              <View key={f.value} style={[styles.chip, statusFilter === f.value && styles.chipActive]}>
-                <FAB
-                  size="small"
-                  label={f.label}
-                  style={[styles.chipBtn, statusFilter === f.value && { backgroundColor: Colors.primary }]}
-                  color={statusFilter === f.value ? '#fff' : Colors.text}
-                  onPress={() => setStatusFilter(f.value)}
-                />
-              </View>
-            ))}
-          </View>
-        }
-        style={{ flexGrow: 0 }}
-      />
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
+        {STATUS_FILTERS.map(f => {
+          const active = filter === f.value;
+          const activeColor = f.color ?? Colors.primary;
+          return (
+            <TouchableOpacity
+              key={f.value}
+              style={[styles.chip, active && { backgroundColor: activeColor, borderColor: activeColor }]}
+              onPress={() => setFilter(f.value)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.chipLabel, active && { color: '#fff' }]}>{f.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
       <FlatList
         data={repairs}
         keyExtractor={r => String(r.id)}
@@ -89,11 +102,18 @@ export default function RepairsListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  search: { margin: 12, borderRadius: 8 },
-  filterRow: { flexDirection: 'row', paddingHorizontal: 8, paddingBottom: 8, gap: 6 },
-  chip: {},
-  chipActive: {},
-  chipBtn: { backgroundColor: Colors.surface, elevation: 0 },
+  search: { margin: 12, marginBottom: 6, borderRadius: 8 },
+  filterScroll: { flexGrow: 0 },
+  filterRow: { paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  chipLabel: { fontSize: 13, color: Colors.text, fontWeight: '500' },
   list: { paddingBottom: 80 },
   empty: { flex: 1 },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: Colors.primary },

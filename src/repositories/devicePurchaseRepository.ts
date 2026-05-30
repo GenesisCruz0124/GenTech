@@ -21,14 +21,15 @@ export interface CreateDevicePurchaseInput {
   imei?: string;
   purchase_price: number;
   notes?: string;
+  image_uri?: string;
 }
 
 export async function createDevicePurchase(input: CreateDevicePurchaseInput): Promise<number> {
   const db = await getDB();
   const result = await db.runAsync(
-    `INSERT INTO device_purchases (customer_id, device_name, device_model, imei, purchase_price, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [input.customer_id, input.device_name, input.device_model, input.imei ?? null, input.purchase_price, input.notes ?? null]
+    `INSERT INTO device_purchases (customer_id, device_name, device_model, imei, purchase_price, notes, image_uri)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [input.customer_id, input.device_name, input.device_model, input.imei ?? null, input.purchase_price, input.notes ?? null, input.image_uri ?? null]
   );
   return result.lastInsertRowId;
 }

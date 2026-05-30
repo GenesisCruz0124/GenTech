@@ -181,7 +181,7 @@ export default function CustomerDetailScreen({ route, navigation }: Props) {
           <TextInput label="Address" value={editAddress} onChangeText={setEditAddress} mode="outlined" style={styles.input} />
           <View style={styles.modalActions}>
             <Button mode="outlined" onPress={() => setEditVisible(false)} style={styles.btnHalf}>Cancel</Button>
-            <Button mode="contained" onPress={handleSave} loading={saving} disabled={!editName.trim() || !editPhone.trim() || saving} style={styles.btnHalf}>Save</Button>
+            <Button mode="contained" onPress={handleSave} loading={saving} disabled={!editName.trim() || saving} style={styles.btnHalf}>Save</Button>
           </View>
         </Modal>
       </Portal>

@@ -8,6 +8,7 @@ import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import RepairsListScreen from '../screens/repairs/RepairsListScreen';
 import PartsListScreen from '../screens/parts/PartsListScreen';
 import DevicesScreen from '../screens/devices/DevicesScreen';
+import ReportsScreen from '../screens/reports/ReportsScreen';
 import MoreMenuScreen from '../screens/more/MoreMenuScreen';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -28,6 +29,7 @@ export default function BottomTabNavigator() {
             Repairs: 'wrench',
             Parts: 'package-variant',
             Devices: 'cellphone',
+            Reports: 'chart-bar',
             More: 'dots-horizontal-circle',
           };
           return (
@@ -44,6 +46,7 @@ export default function BottomTabNavigator() {
       <Tab.Screen name="Repairs" component={RepairsListScreen} options={{ title: 'Repairs' }} />
       <Tab.Screen name="Parts" component={PartsListScreen} options={{ title: 'Parts Stock' }} />
       <Tab.Screen name="Devices" component={DevicesScreen} options={{ title: 'Devices' }} />
+      <Tab.Screen name="Reports" component={ReportsScreen} options={{ title: 'Reports' }} />
       <Tab.Screen name="More" component={MoreMenuScreen} options={{ title: 'More' }} />
     </Tab.Navigator>
   );

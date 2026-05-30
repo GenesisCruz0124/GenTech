@@ -1,12 +1,24 @@
 import { format, parseISO } from 'date-fns';
 
+/**
+ * SQLite datetime('now') stores UTC without a timezone suffix, e.g. "2026-05-30 02:00:00".
+ * parseISO treats bare strings as local time, which is wrong.
+ * This normalises them to UTC so date-fns displays in the device's local (Manila) time.
+ */
+function parseTimestamp(ts: string): Date {
+  const s = ts.includes('T') ? ts : ts.replace(' ', 'T');
+  const withZ = /Z$|[+-]\d{2}:\d{2}$/.test(s) ? s : s + 'Z';
+  return parseISO(withZ);
+}
+
 export function formatCurrency(amount: number): string {
-  return `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const n = amount ?? 0;
+  return `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatDate(isoString: string): string {
   try {
-    return format(parseISO(isoString), 'MMM d, yyyy');
+    return format(parseTimestamp(isoString), 'MMM d, yyyy');
   } catch {
     return isoString;
   }
@@ -14,7 +26,7 @@ export function formatDate(isoString: string): string {
 
 export function formatDateTime(isoString: string): string {
   try {
-    return format(parseISO(isoString), 'MMM d, yyyy h:mm a');
+    return format(parseTimestamp(isoString), 'MMM d, yyyy h:mm a');
   } catch {
     return isoString;
   }

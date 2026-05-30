@@ -1,10 +1,12 @@
 import React, { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Avatar, FAB, List, Portal, Modal, TextInput, Button, Text, Searchbar } from 'react-native-paper';
+import { Avatar, Banner, FAB, List, Portal, Modal, TextInput, Button, Text, Searchbar } from 'react-native-paper';
+import { Customer } from '../../repositories/customerRepository';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { useCustomerStore } from '../../store/customerStore';
+import { findDuplicateCustomers } from '../../repositories/customerRepository';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
 
@@ -20,8 +22,13 @@ export default function CustomerListScreen() {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [saving, setSaving] = useState(false);
+  const [duplicates, setDuplicates] = useState<{ name: string; customers: Customer[] }[]>([]);
+  const [showDuplicates, setShowDuplicates] = useState(false);
 
-  useFocusEffect(useCallback(() => { fetchCustomers(); }, []));
+  useFocusEffect(useCallback(() => {
+    fetchCustomers();
+    findDuplicateCustomers().then(d => setDuplicates(d));
+  }, []));
 
   const filtered = customers.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -29,7 +36,7 @@ export default function CustomerListScreen() {
   );
 
   const handleAdd = async () => {
-    if (!name.trim() || !phone.trim()) return;
+    if (!name.trim()) return;
     setSaving(true);
     await addCustomer({ name: name.trim(), phone: phone.trim(), email: email.trim() || undefined, address: address.trim() || undefined });
     setSaving(false);
@@ -44,6 +51,31 @@ export default function CustomerListScreen() {
 
   return (
     <View style={styles.container}>
+      {duplicates.length > 0 && (
+        <Banner
+          visible
+          icon="account-multiple-outline"
+          actions={[
+            { label: showDuplicates ? 'Hide' : 'View', onPress: () => setShowDuplicates(v => !v) },
+          ]}
+        >
+          {`${duplicates.length} potential duplicate${duplicates.length > 1 ? 's' : ''} found`}
+        </Banner>
+      )}
+      {showDuplicates && duplicates.length > 0 && (
+        <View style={styles.duplicatesBox}>
+          {duplicates.map((group, i) => (
+            <View key={i} style={styles.duplicateGroup}>
+              <Text style={styles.duplicateLabel}>{group.name}</Text>
+              {group.customers.map(c => (
+                <Text key={c.id} style={styles.duplicateItem}>
+                  • {c.name} {c.phone ? `· ${c.phone}` : ''}
+                </Text>
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
       <Searchbar placeholder="Search by name or phone..." value={search} onChangeText={setSearch} style={styles.search} />
       <FlatList
         data={filtered}
@@ -83,7 +115,7 @@ export default function CustomerListScreen() {
           <TextInput label="Address (optional)" value={address} onChangeText={setAddress} mode="outlined" style={styles.input} />
           <View style={styles.modalActions}>
             <Button mode="outlined" onPress={closeModal} style={styles.btnHalf}>Cancel</Button>
-            <Button mode="contained" onPress={handleAdd} loading={saving} disabled={!name.trim() || !phone.trim() || saving} style={styles.btnHalf}>Add</Button>
+            <Button mode="contained" onPress={handleAdd} loading={saving} disabled={!name.trim() || saving} style={styles.btnHalf}>Add</Button>
           </View>
         </Modal>
       </Portal>
@@ -93,7 +125,11 @@ export default function CustomerListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  search: { margin: 12, borderRadius: 8 },
+  search: { margin: 12, marginTop: 8, borderRadius: 8 },
+  duplicatesBox: { backgroundColor: Colors.warning + '18', margin: 12, marginTop: 0, borderRadius: 8, padding: 12, borderLeftWidth: 3, borderLeftColor: Colors.warning },
+  duplicateGroup: { marginBottom: 8 },
+  duplicateLabel: { fontSize: 12, fontWeight: '700', color: Colors.warning, marginBottom: 4 },
+  duplicateItem: { fontSize: 13, color: Colors.text, marginLeft: 8 },
   item: { backgroundColor: Colors.surface, marginHorizontal: 12, marginVertical: 4, borderRadius: 8 },
   avatar: { backgroundColor: Colors.primary, marginLeft: 8, alignSelf: 'center' },
   list: { paddingBottom: 80 },

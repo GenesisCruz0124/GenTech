@@ -14,6 +14,10 @@ import CustomerListScreen from '../screens/customers/CustomerListScreen';
 import CustomerDetailScreen from '../screens/customers/CustomerDetailScreen';
 import InvoicePreviewScreen from '../screens/invoices/InvoicePreviewScreen';
 import InvoiceHistoryScreen from '../screens/invoices/InvoiceHistoryScreen';
+import CategoryScreen from '../screens/categories/CategoryScreen';
+import DeviceBrandScreen from '../screens/categories/DeviceBrandScreen';
+import IssueListScreen from '../screens/categories/IssueListScreen';
+import ShopInfoScreen from '../screens/more/ShopInfoScreen';
 import StaffListScreen from '../screens/staff/StaffListScreen';
 import StaffPerformanceScreen from '../screens/staff/StaffPerformanceScreen';
 
@@ -43,6 +47,10 @@ export default function RootNavigator() {
         <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} options={{ title: 'Customer' }} />
         <Stack.Screen name="InvoicePreview" component={InvoicePreviewScreen} options={{ title: 'Invoice' }} />
         <Stack.Screen name="InvoiceHistory" component={InvoiceHistoryScreen} options={{ title: 'Invoice History' }} />
+        <Stack.Screen name="CategoryList" component={CategoryScreen} options={{ title: 'Categories' }} />
+        <Stack.Screen name="DeviceBrandList" component={DeviceBrandScreen} options={{ title: 'Device Brands' }} />
+        <Stack.Screen name="IssueList" component={IssueListScreen} options={{ title: 'Issue List' }} />
+        <Stack.Screen name="ShopInfo" component={ShopInfoScreen} options={{ title: 'Shop Information' }} />
         <Stack.Screen name="StaffList" component={StaffListScreen} options={{ title: 'Staff' }} />
         <Stack.Screen name="StaffPerformance" component={StaffPerformanceScreen} options={{ title: 'Staff Performance' }} />
       </Stack.Navigator>

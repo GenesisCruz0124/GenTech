@@ -10,6 +10,7 @@ export interface Repair {
   estimated_cost: number;
   final_cost: number | null;
   status: RepairStatus;
+  is_paid: number;
   notes: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -34,6 +35,7 @@ export interface CreateRepairInput {
 
 export interface RepairFilter {
   status?: RepairStatus;
+  not_paid?: boolean;
   search?: string;
   limit?: number;
   offset?: number;
@@ -76,6 +78,10 @@ export async function listRepairs(filter?: RepairFilter): Promise<RepairWithCust
     conditions.push('r.status = ?');
     params.push(filter.status);
   }
+  if (filter?.not_paid) {
+    conditions.push('r.is_paid = 0');
+    conditions.push("r.status NOT IN ('not_repaired')");
+  }
   if (filter?.search) {
     conditions.push('(c.name LIKE ? OR r.device_model LIKE ? OR c.phone LIKE ?)');
     const q = `%${filter.search}%`;
@@ -115,10 +121,28 @@ export async function updateRepairStatus(id: number, status: RepairStatus): Prom
   );
 }
 
-export async function updateRepair(id: number, data: Partial<CreateRepairInput> & { final_cost?: number }): Promise<void> {
+export async function markNotRepaired(id: number): Promise<void> {
   const db = await getDB();
   const now = new Date().toISOString();
-  const allowed = ['device_model', 'issue_desc', 'estimated_cost', 'final_cost', 'notes', 'assigned_staff_id'];
+  await db.runAsync(
+    `UPDATE repairs SET status = 'not_repaired', is_paid = 0, updated_at = ? WHERE id = ?`,
+    [now, id]
+  );
+}
+
+export async function deliverRepair(id: number, isPaid: boolean): Promise<void> {
+  const db = await getDB();
+  const now = new Date().toISOString();
+  await db.runAsync(
+    `UPDATE repairs SET status = 'delivered', is_paid = ?, delivered_at = ?, updated_at = ? WHERE id = ?`,
+    [isPaid ? 1 : 0, now, now, id]
+  );
+}
+
+export async function updateRepair(id: number, data: Partial<CreateRepairInput> & { final_cost?: number; image_uri?: string | null; customer_id?: number }): Promise<void> {
+  const db = await getDB();
+  const now = new Date().toISOString();
+  const allowed = ['device_model', 'issue_desc', 'estimated_cost', 'final_cost', 'notes', 'assigned_staff_id', 'image_uri', 'customer_id'];
   const entries = Object.entries(data).filter(([k]) => allowed.includes(k));
   if (!entries.length) return;
   const fields = entries.map(([k]) => `${k} = ?`).join(', ');
@@ -131,12 +155,20 @@ export async function deleteRepair(id: number): Promise<void> {
   await db.runAsync('DELETE FROM repairs WHERE id = ?', [id]);
 }
 
+export async function getNotPaidCount(): Promise<number> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) as count FROM repairs WHERE is_paid = 0 AND status != 'not_repaired'`
+  );
+  return row?.count ?? 0;
+}
+
 export async function getStatusCounts(): Promise<Record<RepairStatus, number>> {
   const db = await getDB();
   const rows = await db.getAllAsync<{ status: string; count: number }>(
     `SELECT status, COUNT(*) as count FROM repairs GROUP BY status`
   );
-  const counts: Record<RepairStatus, number> = { pending: 0, in_progress: 0, ready: 0, delivered: 0 };
+  const counts: Record<RepairStatus, number> = { pending: 0, in_progress: 0, ready: 0, delivered: 0, not_repaired: 0 };
   for (const row of rows) {
     counts[row.status as RepairStatus] = row.count;
   }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Divider, Text, TextInput, IconButton, Portal, Modal } from 'react-native-paper';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,6 +7,24 @@ import { RootStackParamList } from '../../navigation/types';
 import { useRepairStore } from '../../store/repairStore';
 import { usePartsStore } from '../../store/partsStore';
 import { getRepairById, RepairWithCustomer } from '../../repositories/repairRepository';
+import { getAllIssues, Issue } from '../../repositories/issueRepository';
+import { Customer, searchCustomers, upsertCustomerByPhone } from '../../repositories/customerRepository';
+import {
+  RepairPayment,
+  addRepairPayment,
+  getRepairPayments,
+  getTotalPaid,
+  deleteRepairPayment,
+  PAYMENT_MODES,
+} from '../../repositories/repairPaymentRepository';
+import {
+  RepairImage,
+  getRepairImages,
+  saveRepairImage,
+  deleteRepairImage,
+} from '../../repositories/repairImageRepository';
+import MultiImagePicker from '../../components/common/MultiImagePicker';
+import ImagePickerField from '../../components/common/ImagePickerField';
 import StatusBadge from '../../components/repairs/StatusBadge';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Colors } from '../../constants/colors';
@@ -17,23 +35,50 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RepairDetail'>;
 
 export default function RepairDetailScreen({ route, navigation }: Props) {
   const { repairId } = route.params;
-  const { advanceStatus, removeRepair, editRepair, addNote, getNotes } = useRepairStore();
+  const { advanceStatus, removeRepair, editRepair, addNote, getNotes, setNotRepaired, deliver } = useRepairStore();
   const { getForRepair } = usePartsStore();
 
   const [repair, setRepair] = useState<RepairWithCustomer | null>(null);
   const [notes, setNotes] = useState<any[]>([]);
   const [parts, setParts] = useState<any[]>([]);
+  const [repairImages, setRepairImages] = useState<RepairImage[]>([]);
+  const [payments, setPayments] = useState<RepairPayment[]>([]);
+  const [totalPaid, setTotalPaid] = useState(0);
   const [noteText, setNoteText] = useState('');
   const [deleteVisible, setDeleteVisible] = useState(false);
 
+  // Payment modal
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentMode, setPaymentMode] = useState('Cash');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentImage, setPaymentImage] = useState<string | null>(null);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [viewProofUri, setViewProofUri] = useState<string | null>(null);
+  // Deliver-with-payment modal
+  const [deliverModalVisible, setDeliverModalVisible] = useState(false);
+  const [deliverAmount, setDeliverAmount] = useState('');
+  const [deliverDate, setDeliverDate] = useState('');
+  const [deliverMode, setDeliverMode] = useState('Cash');
+  const [deliverNotes, setDeliverNotes] = useState('');
+  const [deliverImage, setDeliverImage] = useState<string | null>(null);
+  const [deliverSaving, setDeliverSaving] = useState(false);
+
   // Edit modal state
   const [editVisible, setEditVisible] = useState(false);
+  const [editCustomerName, setEditCustomerName] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
   const [editDevice, setEditDevice] = useState('');
-  const [editIssue, setEditIssue] = useState('');
+  const [editSelectedIssues, setEditSelectedIssues] = useState<string[]>([]);
   const [editEstimated, setEditEstimated] = useState('');
   const [editFinal, setEditFinal] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [allIssues, setAllIssues] = useState<Issue[]>([]);
+  // Customer autocomplete in edit modal
+  const [editSuggestions, setEditSuggestions] = useState<Customer[]>([]);
+  const [showEditSuggestions, setShowEditSuggestions] = useState(false);
 
   const load = useCallback(async () => {
     const r = await getRepairById(repairId);
@@ -42,29 +87,51 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
     setNotes(n);
     const p = await getForRepair(repairId);
     setParts(p);
+    const imgs = await getRepairImages(repairId);
+    setRepairImages(imgs);
+    const pmt = await getRepairPayments(repairId);
+    setPayments(pmt);
+    const paid = await getTotalPaid(repairId);
+    setTotalPaid(paid);
   }, [repairId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  useEffect(() => { getAllIssues().then(setAllIssues); }, []);
 
   if (!repair) return null;
 
   const nextStatus = STATUS_NEXT[repair.status];
 
   const openEdit = () => {
+    setEditCustomerName(repair.customer_name);
+    setEditCustomerPhone(repair.customer_phone ?? '');
     setEditDevice(repair.device_model);
-    setEditIssue(repair.issue_desc);
+    const saved = repair.issue_desc.split(', ').map(s => s.trim()).filter(Boolean);
+    setEditSelectedIssues(saved);
     setEditEstimated(String(repair.estimated_cost));
     setEditFinal(repair.final_cost != null ? String(repair.final_cost) : '');
     setEditNotes(repair.notes ?? '');
+    setShowEditSuggestions(false);
     setEditVisible(true);
   };
 
   const handleSaveEdit = async () => {
     setSaving(true);
     try {
+      // Only upsert customer if name or phone actually changed
+      const finalName = editCustomerName.trim() || repair.customer_name;
+      const finalPhone = editCustomerPhone.trim() || repair.customer_phone || '';
+
+      // Always upsert: finds existing by phone, or creates a new customer if not found
+      const customerId = await upsertCustomerByPhone({
+        name: finalName,
+        phone: finalPhone,
+      });
       await editRepair(repairId, {
+        customer_id: customerId,
         device_model: editDevice.trim(),
-        issue_desc: editIssue.trim(),
+        issue_desc: editSelectedIssues.join(', ') || repair.issue_desc,
         estimated_cost: parseFloat(editEstimated) || 0,
         final_cost: editFinal.trim() ? parseFloat(editFinal) : undefined,
         notes: editNotes.trim() || undefined,
@@ -76,9 +143,77 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const openPaymentModal = () => {
+    const now = new Date();
+    setPaymentDate(now.toISOString().split('T')[0]);
+    setPaymentAmount('');
+    setPaymentMode('Cash');
+    setPaymentNotes('');
+    setPaymentImage(null);
+    setPaymentModalVisible(true);
+  };
+
+  const handleAddPayment = async () => {
+    const amt = parseFloat(paymentAmount);
+    if (!amt || amt <= 0) return;
+    setPaymentSaving(true);
+    await addRepairPayment(repairId, amt, paymentDate, {
+      notes: paymentNotes.trim() || undefined,
+      paymentMode: paymentMode,
+      imageUri: paymentImage || undefined,
+    });
+    setPaymentSaving(false);
+    setPaymentModalVisible(false);
+    load();
+  };
+
+  const openDeliverModal = () => {
+    const now = new Date();
+    const totalOwed = repair?.final_cost ?? repair?.estimated_cost ?? 0;
+    setDeliverAmount(String(totalOwed));
+    setDeliverDate(now.toISOString().split('T')[0]);
+    setDeliverMode('Cash');
+    setDeliverNotes('');
+    setDeliverImage(null);
+    setDeliverModalVisible(true);
+  };
+
+  const handleDeliverWithPayment = async () => {
+    setDeliverSaving(true);
+    await deliver(repairId, true);
+    const amt = parseFloat(deliverAmount);
+    if (amt > 0) {
+      await addRepairPayment(repairId, amt, deliverDate, {
+        notes: deliverNotes.trim() || undefined,
+        paymentMode: deliverMode,
+        imageUri: deliverImage || undefined,
+      });
+    }
+    setDeliverSaving(false);
+    setDeliverModalVisible(false);
+    load();
+  };
+
+  const handleDeletePayment = (pmtId: number) => {
+    Alert.alert('Delete Payment', 'Remove this payment record?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { await deleteRepairPayment(pmtId, repairId); load(); } },
+    ]);
+  };
+
   const handleAdvance = async () => {
-    if (!nextStatus) return;
+    if (!nextStatus || nextStatus === 'delivered') return;
     await advanceStatus(repairId, nextStatus);
+    load();
+  };
+
+  const handleDeliver = async (isPaid: boolean) => {
+    await deliver(repairId, isPaid);
+    load();
+  };
+
+  const handleNotRepaired = async () => {
+    await setNotRepaired(repairId);
     load();
   };
 
@@ -112,6 +247,30 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
         </View>
 
         <StatusBadge status={repair.status} />
+
+        {/* Repair photos */}
+        <View style={styles.imageSection}>
+          <Text style={styles.label}>Photos</Text>
+          <MultiImagePicker
+            images={repairImages.map(i => i.image_uri)}
+            maxImages={10}
+            onChange={async (uris) => {
+              // Add newly added URIs
+              for (const uri of uris) {
+                if (!repairImages.find(i => i.image_uri === uri)) {
+                  await saveRepairImage(repairId, uri);
+                }
+              }
+              // Remove deleted URIs
+              for (const img of repairImages) {
+                if (!uris.includes(img.image_uri)) {
+                  await deleteRepairImage(img.id, img.image_uri);
+                }
+              }
+              load();
+            }}
+          />
+        </View>
 
         <Divider style={styles.divider} />
 
@@ -163,11 +322,104 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
         )}
 
         {/* Status advance */}
-        {nextStatus && (
+        {nextStatus && nextStatus !== 'delivered' && (
           <Button mode="contained" onPress={handleAdvance} style={styles.advanceBtn}>
             Mark as {STATUS_LABELS[nextStatus]}
           </Button>
         )}
+
+        {/* Ready to Pickup — delivery options */}
+        {repair.status === 'ready' && (
+          <>
+            <Button mode="contained" onPress={openDeliverModal} style={styles.advanceBtn}>
+              Mark as Delivered (Paid)
+            </Button>
+            <Button
+              mode="outlined"
+              icon="cash-remove"
+              onPress={() => handleDeliver(false)}
+              style={[styles.advanceBtn, { borderColor: Colors.warning }]}
+              textColor={Colors.warning}
+            >
+              Skip Payment (Unpaid)
+            </Button>
+          </>
+        )}
+
+        {/* Not Repaired — available until delivered */}
+        {repair.status !== 'delivered' && repair.status !== 'not_repaired' && (
+          <Button
+            mode="outlined"
+            icon="close-circle-outline"
+            onPress={handleNotRepaired}
+            style={[styles.advanceBtn, { borderColor: Colors.error }]}
+            textColor={Colors.error}
+          >
+            Mark as Not Repaired
+          </Button>
+        )}
+
+        {/* Payment section — visible for all delivered repairs */}
+        {repair.status === 'delivered' && (() => {
+          const totalOwed = repair.final_cost ?? repair.estimated_cost;
+          const remaining = totalOwed - totalPaid;
+          return (
+            <>
+              <Divider style={styles.divider} />
+              <Text style={styles.sectionTitle}>Payment</Text>
+
+              <View style={styles.paymentSummary}>
+                <View style={styles.paymentCell}>
+                  <Text style={styles.paymentLabel}>Total Owed</Text>
+                  <Text style={styles.paymentVal}>{formatCurrency(totalOwed)}</Text>
+                </View>
+                <View style={styles.paymentCell}>
+                  <Text style={styles.paymentLabel}>Paid</Text>
+                  <Text style={[styles.paymentVal, { color: Colors.success }]}>{formatCurrency(totalPaid)}</Text>
+                </View>
+                <View style={styles.paymentCell}>
+                  <Text style={styles.paymentLabel}>Balance</Text>
+                  <Text style={[styles.paymentVal, { color: remaining > 0 ? Colors.error : Colors.success, fontWeight: '700' }]}>
+                    {formatCurrency(remaining > 0 ? remaining : 0)}
+                  </Text>
+                </View>
+              </View>
+
+              {repair.is_paid === 0 && (
+                <View style={styles.unpaidBadge}>
+                  <Text style={styles.unpaidText}>⚠ Payment not fully collected</Text>
+                </View>
+              )}
+
+              {payments.length > 0 && (
+                <View style={styles.paymentHistory}>
+                  {payments.map((p) => (
+                    <View key={p.id} style={styles.paymentRow}>
+                      <View style={styles.paymentLeft}>
+                        <Text style={styles.paymentDate}>{p.payment_date}{p.payment_mode ? ` · ${p.payment_mode}` : ''}</Text>
+                        {p.notes ? <Text style={styles.paymentNote}>{p.notes}</Text> : null}
+                        {p.image_uri ? (
+                          <TouchableOpacity onPress={() => setViewProofUri(p.image_uri)} style={styles.proofThumbWrap}>
+                            <Image source={{ uri: p.image_uri }} style={styles.proofThumb} resizeMode="cover" />
+                            <Text style={styles.proofLabel}>View proof</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.paymentVal, { color: Colors.success }]}>{formatCurrency(p.amount)}</Text>
+                      <IconButton icon="delete-outline" size={16} iconColor={Colors.error} onPress={() => handleDeletePayment(p.id)} />
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {repair.is_paid === 0 && (
+                <Button mode="outlined" icon="cash-plus" onPress={openPaymentModal} style={styles.addPaymentBtn}>
+                  Add Payment
+                </Button>
+              )}
+            </>
+          );
+        })()}
 
         <Button
           mode="outlined"
@@ -204,11 +456,109 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
+      {/* Add Payment Modal */}
+      <Portal>
+        <Modal visible={paymentModalVisible} onDismiss={() => setPaymentModalVisible(false)} contentContainerStyle={styles.modal}>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>Add Payment</Text>
+            <TextInput label="Amount (₱) *" value={paymentAmount} onChangeText={setPaymentAmount} mode="outlined" style={styles.modalInput} keyboardType="decimal-pad" />
+            <TextInput label="Payment Date *" value={paymentDate} onChangeText={setPaymentDate} mode="outlined" style={styles.modalInput} placeholder="YYYY-MM-DD" />
+            <Text style={styles.modeLabel}>Mode of Payment</Text>
+            <View style={styles.modeChips}>
+              {PAYMENT_MODES.map(m => (
+                <TouchableOpacity key={m} style={[styles.modeChip, paymentMode === m && styles.modeChipActive]} onPress={() => setPaymentMode(m)}>
+                  <Text style={[styles.modeChipLabel, paymentMode === m && styles.modeChipLabelActive]}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput label="Notes (optional)" value={paymentNotes} onChangeText={setPaymentNotes} mode="outlined" style={styles.modalInput} />
+            <Text style={styles.modeLabel}>Proof of Payment</Text>
+            <ImagePickerField uri={paymentImage} onPicked={setPaymentImage} onClear={() => setPaymentImage(null)} />
+            <View style={styles.modalActions}>
+              <Button mode="outlined" onPress={() => setPaymentModalVisible(false)} style={styles.btnHalf}>Cancel</Button>
+              <Button mode="contained" onPress={handleAddPayment} loading={paymentSaving} disabled={!paymentAmount || paymentSaving} style={styles.btnHalf}>Save</Button>
+            </View>
+          </ScrollView>
+        </Modal>
+      </Portal>
+
+      {/* Deliver with Payment Modal */}
+      <Portal>
+        <Modal visible={deliverModalVisible} onDismiss={() => setDeliverModalVisible(false)} contentContainerStyle={styles.modal}>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>Mark as Delivered — Payment</Text>
+            <TextInput label="Amount Received (₱)" value={deliverAmount} onChangeText={setDeliverAmount} mode="outlined" style={styles.modalInput} keyboardType="decimal-pad" />
+            <TextInput label="Payment Date" value={deliverDate} onChangeText={setDeliverDate} mode="outlined" style={styles.modalInput} placeholder="YYYY-MM-DD" />
+            <Text style={styles.modeLabel}>Mode of Payment</Text>
+            <View style={styles.modeChips}>
+              {PAYMENT_MODES.map(m => (
+                <TouchableOpacity key={m} style={[styles.modeChip, deliverMode === m && styles.modeChipActive]} onPress={() => setDeliverMode(m)}>
+                  <Text style={[styles.modeChipLabel, deliverMode === m && styles.modeChipLabelActive]}>{m}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput label="Notes (optional)" value={deliverNotes} onChangeText={setDeliverNotes} mode="outlined" style={styles.modalInput} />
+            <Text style={styles.modeLabel}>Proof of Payment</Text>
+            <ImagePickerField uri={deliverImage} onPicked={setDeliverImage} onClear={() => setDeliverImage(null)} />
+            <View style={styles.modalActions}>
+              <Button mode="outlined" onPress={() => setDeliverModalVisible(false)} style={styles.btnHalf}>Cancel</Button>
+              <Button mode="contained" onPress={handleDeliverWithPayment} loading={deliverSaving} disabled={deliverSaving} style={styles.btnHalf}>Confirm</Button>
+            </View>
+          </ScrollView>
+        </Modal>
+      </Portal>
+
       {/* Edit Modal */}
       <Portal>
         <Modal visible={editVisible} onDismiss={() => setEditVisible(false)} contentContainerStyle={styles.modal}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Edit Repair</Text>
+
+            <Text style={styles.modalLabel}>Customer Name</Text>
+            <TextInput
+              mode="outlined"
+              value={editCustomerName}
+              onChangeText={async (text) => {
+                setEditCustomerName(text);
+                if (text.length >= 2) {
+                  const results = await searchCustomers(text);
+                  setEditSuggestions(results);
+                  setShowEditSuggestions(results.length > 0);
+                } else {
+                  setShowEditSuggestions(false);
+                }
+              }}
+              style={styles.input}
+              placeholder="Customer name"
+            />
+            {showEditSuggestions && (
+              <View style={styles.suggestionBox}>
+                {editSuggestions.map(c => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={styles.suggestionItem}
+                    onPress={() => {
+                      setEditCustomerName(c.name);
+                      setEditCustomerPhone(c.phone ?? '');
+                      setShowEditSuggestions(false);
+                    }}
+                  >
+                    <Text style={styles.suggestionName}>{c.name}</Text>
+                    <Text style={styles.suggestionPhone}>{c.phone}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <Text style={styles.modalLabel}>Customer Phone</Text>
+            <TextInput
+              mode="outlined"
+              value={editCustomerPhone}
+              onChangeText={setEditCustomerPhone}
+              style={styles.input}
+              keyboardType="phone-pad"
+              placeholder="Phone number"
+            />
 
             <Text style={styles.modalLabel}>Device Model</Text>
             <TextInput
@@ -218,15 +568,35 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
               style={styles.input}
             />
 
-            <Text style={styles.modalLabel}>Issue Description</Text>
-            <TextInput
-              mode="outlined"
-              value={editIssue}
-              onChangeText={setEditIssue}
-              style={styles.input}
-              multiline
-              numberOfLines={3}
-            />
+            <Text style={styles.modalLabel}>Issue(s)</Text>
+            {editSelectedIssues.length > 0 && (
+              <View style={styles.selectedBadge}>
+                <Text style={styles.selectedText}>{editSelectedIssues.join(' · ')}</Text>
+              </View>
+            )}
+            <View style={styles.issueChips}>
+              {allIssues.map(issue => {
+                const active = editSelectedIssues.includes(issue.name);
+                return (
+                  <TouchableOpacity
+                    key={issue.id}
+                    style={[styles.issueChip, active && styles.issueChipActive]}
+                    onPress={() =>
+                      setEditSelectedIssues(prev =>
+                        prev.includes(issue.name)
+                          ? prev.filter(i => i !== issue.name)
+                          : [...prev, issue.name]
+                      )
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.issueChipLabel, active && styles.issueChipLabelActive]}>
+                      {issue.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             <Text style={styles.modalLabel}>Estimated Cost (₱)</Text>
             <TextInput
@@ -265,7 +635,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                 mode="contained"
                 onPress={handleSaveEdit}
                 loading={saving}
-                disabled={saving || !editDevice.trim() || !editIssue.trim()}
+                disabled={saving || !editDevice.trim() || editSelectedIssues.length === 0}
                 style={styles.saveBtn}
               >
                 Save
@@ -274,6 +644,16 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
           </ScrollView>
         </Modal>
       </Portal>
+
+      {/* Proof image full-screen viewer */}
+      <RNModal visible={!!viewProofUri} transparent animationType="fade" onRequestClose={() => setViewProofUri(null)}>
+        <TouchableOpacity style={styles.proofViewer} activeOpacity={1} onPress={() => setViewProofUri(null)}>
+          {viewProofUri && <Image source={{ uri: viewProofUri }} style={styles.proofFullImg} resizeMode="contain" />}
+          <TouchableOpacity style={styles.proofCloseBtn} onPress={() => setViewProofUri(null)}>
+            <Text style={{ color: '#fff', fontSize: 28 }}>✕</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </RNModal>
 
       <ConfirmDialog
         visible={deleteVisible}
@@ -308,6 +688,47 @@ const styles = StyleSheet.create({
   partPrice: { fontSize: 14, color: Colors.textSecondary },
   advanceBtn: { marginBottom: 8, borderRadius: 8 },
   invoiceBtn: { borderRadius: 8 },
+  unpaidBadge: { backgroundColor: Colors.warning + '20', borderRadius: 6, padding: 10, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: Colors.warning },
+  unpaidText: { color: Colors.warning, fontWeight: '600', fontSize: 13 },
+  imageSection: { marginTop: 8 },
+  paymentSummary: { flexDirection: 'row', backgroundColor: Colors.background, borderRadius: 8, marginBottom: 10 },
+  paymentCell: { flex: 1, alignItems: 'center', padding: 10 },
+  paymentLabel: { fontSize: 11, color: Colors.textSecondary, textTransform: 'uppercase' },
+  paymentVal: { fontSize: 14, fontWeight: '600', color: Colors.text, marginTop: 2 },
+  paymentHistory: { backgroundColor: Colors.background, borderRadius: 8, marginBottom: 8 },
+  paymentRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  paymentLeft: { flex: 1 },
+  paymentDate: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  proofThumbWrap: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  proofThumb: { width: 56, height: 56, borderRadius: 6 },
+  proofLabel: { fontSize: 12, color: Colors.primary },
+  proofViewer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
+  proofFullImg: { width: '100%', height: '80%' },
+  proofCloseBtn: { position: 'absolute', top: 48, right: 16 },
+  modeLabel: { fontSize: 12, color: Colors.textSecondary, marginBottom: 6, marginTop: 8 },
+  modeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  modeChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  modeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  modeChipLabel: { fontSize: 12, color: Colors.text },
+  modeChipLabelActive: { color: '#fff', fontWeight: '600' },
+  paymentNote: { fontSize: 11, color: Colors.textSecondary },
+  addPaymentBtn: { borderRadius: 8, marginBottom: 4 },
+  suggestionBox: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, marginTop: 2, marginBottom: 6, elevation: 4, zIndex: 99 },
+  suggestionItem: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  suggestionName: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  suggestionPhone: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
+  selectedBadge: { backgroundColor: Colors.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+  selectedText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+  issueChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 8 },
+  issueChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  issueChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  issueChipLabel: { fontSize: 12, color: Colors.text },
+  issueChipLabelActive: { color: '#fff', fontWeight: '600' },
+  modal: { backgroundColor: Colors.surface, margin: 16, borderRadius: 12, padding: 20 },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 12 },
+  modalInput: { marginBottom: 8, backgroundColor: Colors.surface },
+  modalActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  btnHalf: { flex: 1, borderRadius: 8 },
   note: { backgroundColor: Colors.surface, borderRadius: 6, padding: 10, marginBottom: 6, borderLeftWidth: 3, borderLeftColor: Colors.primaryLight },
   noteContent: { fontSize: 14, color: Colors.text },
   noteMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },

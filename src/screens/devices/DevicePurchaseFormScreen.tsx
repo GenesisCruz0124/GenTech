@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
 import { Button, HelperText, TextInput, Text } from 'react-native-paper';
+import ImagePickerField from '../../components/common/ImagePickerField';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,7 +15,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'DevicePurchaseForm'>;
 
 const schema = z.object({
   customerName: z.string().min(1, 'Required'),
-  customerPhone: z.string().min(7, 'Valid phone required'),
+  customerPhone: z.string().optional(),
   deviceName: z.string().min(1, 'Required'),
   deviceModel: z.string().min(1, 'Required'),
   imei: z.string().optional(),
@@ -28,6 +29,7 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
   const { addPurchase } = useDeviceStore();
   const { upsertByPhone } = useCustomerStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -37,7 +39,7 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      const customerId = await upsertByPhone({ name: data.customerName, phone: data.customerPhone });
+      const customerId = await upsertByPhone({ name: data.customerName, phone: data.customerPhone || '' });
       await addPurchase({
         customer_id: customerId,
         device_name: data.deviceName,
@@ -45,6 +47,7 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
         imei: data.imei || undefined,
         purchase_price: parseFloat(data.purchasePrice),
         notes: data.notes || undefined,
+        image_uri: imageUri || undefined,
       });
       navigation.goBack();
     } finally {
@@ -62,7 +65,7 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
         <HelperText type="error" visible={!!errors.customerName}>{errors.customerName?.message}</HelperText>
 
         <Controller control={control} name="customerPhone" render={({ field: { onChange, value } }) => (
-          <TextInput label="Phone Number *" value={value} onChangeText={onChange} mode="outlined" style={styles.input} keyboardType="phone-pad" error={!!errors.customerPhone} />
+          <TextInput label="Phone Number" value={value} onChangeText={onChange} mode="outlined" style={styles.input} keyboardType="phone-pad" error={!!errors.customerPhone} />
         )} />
         <HelperText type="error" visible={!!errors.customerPhone}>{errors.customerPhone?.message}</HelperText>
 
@@ -89,6 +92,9 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
         <Controller control={control} name="notes" render={({ field: { onChange, value } }) => (
           <TextInput label="Notes (optional)" value={value} onChangeText={onChange} mode="outlined" style={styles.input} multiline />
         )} />
+
+        <Text style={styles.section}>Photo (optional)</Text>
+        <ImagePickerField uri={imageUri} onPicked={setImageUri} onClear={() => setImageUri(null)} />
 
         <Button mode="contained" onPress={handleSubmit(onSubmit)} loading={isSubmitting} disabled={isSubmitting} style={styles.button} contentStyle={styles.buttonContent}>
           Record Purchase
