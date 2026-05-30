@@ -9,8 +9,10 @@
     "android": {
       "package": "com.gentech.repairshop",
       "permissions": [
+        "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "ios": {
@@ -19,7 +21,13 @@
     },
     "plugins": [
       "expo-sqlite",
-      "expo-image-picker"
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow GenTech to access your photos.",
+          "cameraPermission": "Allow GenTech to use your camera to capture device photos."
+        }
+      ]
     ],
     "extra": {
       "eas": {
