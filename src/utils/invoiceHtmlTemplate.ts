@@ -15,23 +15,6 @@ interface InvoiceData {
 }
 
 export function buildInvoiceHtml(data: InvoiceData): string {
-  const partsRows = (data.parts ?? [])
-    .map(p => `
-      <tr>
-        <td>${p.name}</td>
-        <td style="text-align:center">${p.quantity}</td>
-        <td style="text-align:right">${formatCurrency(p.unit_price)}</td>
-        <td style="text-align:right">${formatCurrency(p.unit_price * p.quantity)}</td>
-      </tr>
-    `)
-    .join('');
-
-  const laborRow = data.labor_cost
-    ? `<tr>
-        <td colspan="3" style="text-align:right;font-style:italic">Labor</td>
-        <td style="text-align:right">${formatCurrency(data.labor_cost)}</td>
-       </tr>`
-    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -85,32 +68,14 @@ export function buildInvoiceHtml(data: InvoiceData): string {
     <div class="customer-phone">${data.customer_phone}</div>
   </div>
 
-  ${data.device_model ? `
-  <div class="device-box">
-    <div class="section-title">Device</div>
-    <span class="device-label">${data.device_model}</span>
-    ${data.issue_desc ? ` — ${data.issue_desc}` : ''}
-  </div>` : ''}
+  <div style="padding:12px 0;border-top:1px solid #E0E0E0;margin-bottom:8px;font-size:14px;color:#424242">
+    ${data.device_model ? `<strong>${data.device_model}</strong>` : ''}${data.issue_desc ? ` &mdash; ${data.issue_desc}` : ''}
+  </div>
 
-  <div class="section-title">Items</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="text-align:left">Description</th>
-        <th style="text-align:center">Qty</th>
-        <th style="text-align:right">Unit Price</th>
-        <th style="text-align:right">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${partsRows || `<tr><td colspan="4" style="text-align:center;color:#9E9E9E">—</td></tr>`}
-      ${laborRow}
-      <tr class="total-row">
-        <td colspan="3" style="text-align:right;font-weight:bold">TOTAL</td>
-        <td style="text-align:right;color:#1976D2;font-weight:bold">${formatCurrency(data.total_amount)}</td>
-      </tr>
-    </tbody>
-  </table>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:2px solid #1976D2;border-bottom:2px solid #1976D2;margin-bottom:16px">
+    <div style="font-size:16px;font-weight:bold;color:#212121">TOTAL AMOUNT</div>
+    <div style="font-size:22px;font-weight:bold;color:#1976D2">${formatCurrency(data.total_amount)}</div>
+  </div>
 
   ${data.notes ? `<div style="margin-top:8px;padding:10px;background:#FFF8E1;border-radius:4px;font-size:12px"><strong>Note:</strong> ${data.notes}</div>` : ''}
 

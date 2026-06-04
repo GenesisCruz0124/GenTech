@@ -1,4 +1,6 @@
 node_modules/
+android/gradle.properties
+android/app/gentech-release.keystore
 .expo/
 dist/
 web-build/

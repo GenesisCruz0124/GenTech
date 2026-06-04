@@ -12,6 +12,8 @@ export interface Repair {
   status: RepairStatus;
   is_paid: number;
   notes: string | null;
+  has_warranty: number;
+  warranty_until: string | null;
   started_at: string | null;
   completed_at: string | null;
   delivered_at: string | null;
@@ -22,6 +24,7 @@ export interface Repair {
 export interface RepairWithCustomer extends Repair {
   customer_name: string;
   customer_phone: string;
+  customer_address: string | null;
 }
 
 export interface CreateRepairInput {
@@ -31,21 +34,27 @@ export interface CreateRepairInput {
   issue_desc: string;
   estimated_cost: number;
   notes?: string;
+  created_at?: string; // override record date (YYYY-MM-DD or full ISO)
 }
 
 export interface RepairFilter {
   status?: RepairStatus;
+  statuses?: RepairStatus[];  // multi-select
   not_paid?: boolean;
   search?: string;
+  dateFrom?: string;   // ISO date string YYYY-MM-DD
   limit?: number;
   offset?: number;
 }
 
 export async function createRepair(input: CreateRepairInput): Promise<number> {
   const db = await getDB();
+  const createdAt = input.created_at
+    ? (input.created_at.length === 10 ? input.created_at + 'T00:00:00.000Z' : input.created_at)
+    : new Date().toISOString();
   const result = await db.runAsync(
-    `INSERT INTO repairs (customer_id, assigned_staff_id, device_model, issue_desc, estimated_cost, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO repairs (customer_id, assigned_staff_id, device_model, issue_desc, estimated_cost, notes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.customer_id,
       input.assigned_staff_id ?? null,
@@ -53,6 +62,8 @@ export async function createRepair(input: CreateRepairInput): Promise<number> {
       input.issue_desc,
       input.estimated_cost,
       input.notes ?? null,
+      createdAt,
+      createdAt,
     ]
   );
   return result.lastInsertRowId;
@@ -61,7 +72,7 @@ export async function createRepair(input: CreateRepairInput): Promise<number> {
 export async function getRepairById(id: number): Promise<RepairWithCustomer | null> {
   const db = await getDB();
   return db.getFirstAsync<RepairWithCustomer>(
-    `SELECT r.*, c.name as customer_name, c.phone as customer_phone
+    `SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
      FROM repairs r
      JOIN customers c ON c.id = r.customer_id
      WHERE r.id = ?`,
@@ -74,18 +85,25 @@ export async function listRepairs(filter?: RepairFilter): Promise<RepairWithCust
   const conditions: string[] = [];
   const params: (string | number)[] = [];
 
-  if (filter?.status) {
+  if (filter?.statuses && filter.statuses.length > 0) {
+    conditions.push(`r.status IN (${filter.statuses.map(() => '?').join(', ')})`);
+    params.push(...filter.statuses);
+  } else if (filter?.status) {
     conditions.push('r.status = ?');
     params.push(filter.status);
   }
   if (filter?.not_paid) {
     conditions.push('r.is_paid = 0');
-    conditions.push("r.status NOT IN ('not_repaired')");
+    conditions.push("r.status = 'delivered'");
   }
   if (filter?.search) {
     conditions.push('(c.name LIKE ? OR r.device_model LIKE ? OR c.phone LIKE ?)');
     const q = `%${filter.search}%`;
     params.push(q, q, q);
+  }
+  if (filter?.dateFrom) {
+    conditions.push("strftime('%Y-%m-%d', r.created_at) >= ?");
+    params.push(filter.dateFrom);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -94,7 +112,7 @@ export async function listRepairs(filter?: RepairFilter): Promise<RepairWithCust
   params.push(limit, offset);
 
   return db.getAllAsync<RepairWithCustomer>(
-    `SELECT r.*, c.name as customer_name, c.phone as customer_phone
+    `SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
      FROM repairs r
      JOIN customers c ON c.id = r.customer_id
      ${where}
@@ -155,7 +173,7 @@ export async function deliverRepair(id: number, isPaid: boolean): Promise<void> 
 export async function updateRepair(id: number, data: Partial<CreateRepairInput> & { final_cost?: number; image_uri?: string | null; customer_id?: number }): Promise<void> {
   const db = await getDB();
   const now = new Date().toISOString();
-  const allowed = ['device_model', 'issue_desc', 'estimated_cost', 'final_cost', 'notes', 'assigned_staff_id', 'image_uri', 'customer_id'];
+  const allowed = ['device_model', 'issue_desc', 'estimated_cost', 'final_cost', 'notes', 'assigned_staff_id', 'image_uri', 'customer_id', 'has_warranty', 'warranty_until', 'created_at'];
   const entries = Object.entries(data).filter(([k]) => allowed.includes(k));
   if (!entries.length) return;
   const fields = entries.map(([k]) => `${k} = ?`).join(', ');
@@ -168,18 +186,24 @@ export async function deleteRepair(id: number): Promise<void> {
   await db.runAsync('DELETE FROM repairs WHERE id = ?', [id]);
 }
 
-export async function getNotPaidCount(): Promise<number> {
+export async function getNotPaidCount(dateFrom?: string): Promise<number> {
   const db = await getDB();
+  const where = dateFrom
+    ? `WHERE is_paid = 0 AND status = 'delivered' AND strftime('%Y-%m-%d', created_at) >= '${dateFrom}'`
+    : `WHERE is_paid = 0 AND status = 'delivered'`;
   const row = await db.getFirstAsync<{ count: number }>(
-    `SELECT COUNT(*) as count FROM repairs WHERE is_paid = 0 AND status != 'not_repaired'`
+    `SELECT COUNT(*) as count FROM repairs ${where}`
   );
   return row?.count ?? 0;
 }
 
-export async function getStatusCounts(): Promise<Record<RepairStatus, number>> {
+export async function getStatusCounts(dateFrom?: string): Promise<Record<RepairStatus, number>> {
   const db = await getDB();
+  const where = dateFrom
+    ? `WHERE strftime('%Y-%m-%d', created_at) >= '${dateFrom}'`
+    : '';
   const rows = await db.getAllAsync<{ status: string; count: number }>(
-    `SELECT status, COUNT(*) as count FROM repairs GROUP BY status`
+    `SELECT status, COUNT(*) as count FROM repairs ${where} GROUP BY status`
   );
   const counts: Record<RepairStatus, number> = { pending: 0, in_progress: 0, ready: 0, delivered: 0, not_repaired: 0 };
   for (const row of rows) {

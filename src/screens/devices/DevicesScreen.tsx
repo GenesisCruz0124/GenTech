@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { FAB, List, SegmentedButtons, Text } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { useDeviceStore } from '../../store/deviceStore';
@@ -13,6 +14,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function DevicesScreen() {
   const navigation = useNavigation<Nav>();
+  useAnimatedTabTitle(navigation, 'Devices');
   const { sales, purchases, isLoading, fetchSales, fetchPurchases } = useDeviceStore();
   const [tab, setTab] = useState('sales');
 

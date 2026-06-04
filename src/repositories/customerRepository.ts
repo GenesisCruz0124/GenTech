@@ -6,6 +6,11 @@ export interface Customer {
   phone: string;
   email: string | null;
   address: string | null;
+  facebook: string | null;
+  photo_uri: string | null;
+  unpaid_amount?: number;
+  active_repair_count?: number;
+  last_transaction_at?: string | null;
   is_deleted: number;
   created_at: string;
 }
@@ -15,24 +20,47 @@ export interface CreateCustomerInput {
   phone: string;
   email?: string;
   address?: string;
+  facebook?: string | null;
+  photo_uri?: string | null;
 }
 
 export async function upsertCustomerByPhone(input: CreateCustomerInput): Promise<number> {
   const db = await getDB();
-  // Only look up by phone if one was provided
+
+  // 1. Match by phone (most reliable)
   if (input.phone) {
-    const existing = await db.getFirstAsync<{ id: number }>(
+    const byPhone = await db.getFirstAsync<{ id: number }>(
       'SELECT id FROM customers WHERE phone = ? AND is_deleted = 0',
       [input.phone]
     );
-    if (existing) {
+    if (byPhone) {
       await db.runAsync(
         'UPDATE customers SET name = ?, email = ?, address = ? WHERE id = ?',
-        [input.name, input.email ?? null, input.address ?? null, existing.id]
+        [input.name, input.email ?? null, input.address ?? null, byPhone.id]
       );
-      return existing.id;
+      return byPhone.id;
     }
   }
+
+  // 2. Match by name (case-insensitive) to avoid duplicates when phone is empty
+  const byName = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM customers
+     WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND is_deleted = 0
+     LIMIT 1`,
+    [input.name]
+  );
+  if (byName) {
+    // Update phone if we now have one
+    if (input.phone) {
+      await db.runAsync(
+        'UPDATE customers SET phone = ?, email = ?, address = ? WHERE id = ?',
+        [input.phone, input.email ?? null, input.address ?? null, byName.id]
+      );
+    }
+    return byName.id;
+  }
+
+  // 3. Create new customer only if no match found
   const result = await db.runAsync(
     'INSERT INTO customers (name, phone, email, address) VALUES (?, ?, ?, ?)',
     [input.name, input.phone || '', input.email ?? null, input.address ?? null]
@@ -43,7 +71,32 @@ export async function upsertCustomerByPhone(input: CreateCustomerInput): Promise
 export async function getAllCustomers(): Promise<Customer[]> {
   const db = await getDB();
   return db.getAllAsync<Customer>(
-    'SELECT * FROM customers WHERE is_deleted = 0 ORDER BY name ASC'
+    `SELECT c.*,
+       COALESCE((
+         SELECT SUM(COALESCE(r.final_cost, r.estimated_cost))
+         FROM repairs r
+         WHERE r.customer_id = c.id
+           AND r.status = 'delivered'
+           AND r.is_paid = 0
+       ), 0) AS unpaid_amount,
+       COALESCE((
+         SELECT COUNT(*)
+         FROM repairs r
+         WHERE r.customer_id = c.id
+           AND r.status NOT IN ('delivered', 'not_repaired')
+       ), 0) AS active_repair_count,
+       (
+         SELECT MAX(t) FROM (
+           SELECT MAX(r.created_at) AS t FROM repairs r WHERE r.customer_id = c.id
+           UNION ALL
+           SELECT MAX(ds.sold_at) AS t FROM device_sales ds WHERE ds.customer_id = c.id
+           UNION ALL
+           SELECT MAX(dp.purchased_at) AS t FROM device_purchases dp WHERE dp.customer_id = c.id
+         )
+       ) AS last_transaction_at
+     FROM customers c
+     WHERE c.is_deleted = 0
+     ORDER BY c.name ASC`
   );
 }
 

@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
-import { Alert, FlatList, StyleSheet, View } from 'react-native';
-import { Button, Divider, IconButton, List, Modal, Portal, Text, TextInput } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useLayoutEffect, useState } from 'react';
+import { Alert, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button, Divider, IconButton, List, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import {
   Category,
   getAllCategories,
@@ -13,7 +14,20 @@ import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
 
 export default function CategoryScreen() {
+  const navigation = useNavigation<any>();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [search, setSearch] = useState('');
+  const [searchVisible, setSearchVisible] = useState(false);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity style={hdrBtn} onPress={() => setSearchVisible(v => !v)}>
+          <MaterialCommunityIcons name="magnify" size={20} color="#fff" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editTarget, setEditTarget] = useState<Category | null>(null);
   const [nameInput, setNameInput] = useState('');
@@ -61,15 +75,18 @@ export default function CategoryScreen() {
     );
   };
 
+  const filtered = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
+
   return (
     <View style={styles.container}>
+      {searchVisible && <Searchbar placeholder="Search categories..." value={search} onChangeText={setSearch} style={styles.search} autoFocus />}
       <FlatList
-        data={categories}
+        data={filtered}
         keyExtractor={c => String(c.id)}
         renderItem={({ item }) => (
           <List.Item
             title={item.name}
-            left={props => <List.Icon {...props} icon="tag-outline" color={Colors.primary} />}
+            left={props => <List.Icon {...props} icon={getCategoryIcon(item.name)} color={Colors.primary} />}
             right={() => (
               <View style={styles.actions}>
                 <IconButton icon="pencil-outline" iconColor={Colors.primary} onPress={() => openEdit(item)} />
@@ -113,8 +130,37 @@ export default function CategoryScreen() {
   );
 }
 
+const hdrBtn: any = { padding: 5, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.18)', marginRight: 12 };
+
+function getCategoryIcon(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('display') || n.includes('screen') || n.includes('lcd') || n.includes('oled')) return 'cellphone-screenshot';
+  if (n.includes('battery')) return 'battery-charging-outline';
+  if (n.includes('camera') || n.includes('cam')) return 'camera-outline';
+  if (n.includes('charging') || n.includes('charger') || n.includes('usb') || n.includes('port')) return 'power-plug-outline';
+  if (n.includes('speaker') || n.includes('audio') || n.includes('ear')) return 'speaker-wireless';
+  if (n.includes('button') || n.includes('power btn') || n.includes('volume')) return 'gesture-tap-button';
+  if (n.includes('back') || n.includes('housing') || n.includes('cover') || n.includes('casing')) return 'cellphone';
+  if (n.includes('microphone') || n.includes('mic')) return 'microphone-outline';
+  if (n.includes('sim') || n.includes('tray')) return 'sim-outline';
+  if (n.includes('wifi') || n.includes('bluetooth') || n.includes('signal') || n.includes('network')) return 'wifi';
+  if (n.includes('motherboard') || n.includes('board') || n.includes('pcb')) return 'integrated-circuit-chip';
+  if (n.includes('fingerprint') || n.includes('biometric')) return 'fingerprint';
+  if (n.includes('face') || n.includes('face id')) return 'face-recognition';
+  if (n.includes('vibrat')) return 'vibrate';
+  if (n.includes('proximity') || n.includes('sensor')) return 'motion-sensor';
+  if (n.includes('headphone') || n.includes('jack') || n.includes('earphone')) return 'headphones';
+  if (n.includes('flashlight') || n.includes('flash') || n.includes('torch')) return 'flashlight-outline';
+  if (n.includes('gps') || n.includes('location')) return 'map-marker-outline';
+  if (n.includes('software') || n.includes('os') || n.includes('system')) return 'cog-outline';
+  if (n.includes('water') || n.includes('liquid')) return 'water-outline';
+  if (n.includes('data') || n.includes('recovery')) return 'database-outline';
+  return 'tag-outline';
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  search: { margin: 12, borderRadius: 10 },
   item: { backgroundColor: Colors.surface },
   actions: { flexDirection: 'row', alignItems: 'center' },
   empty: { flex: 1 },

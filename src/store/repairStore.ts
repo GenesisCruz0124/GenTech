@@ -1,4 +1,12 @@
 import { create } from 'zustand';
+
+// Module-level flag: set when a repair is created so RepairsListScreen clears stale filters
+export let repairJustCreated = false;
+export function consumeRepairJustCreated(): boolean {
+  const val = repairJustCreated;
+  repairJustCreated = false;
+  return val;
+}
 import {
   RepairWithCustomer,
   CreateRepairInput,
@@ -26,7 +34,7 @@ interface RepairStore {
   error: string | null;
 
   fetchRepairs: (filter?: RepairFilter) => Promise<void>;
-  fetchStatusCounts: () => Promise<void>;
+  fetchStatusCounts: (dateFrom?: string) => Promise<void>;
   addRepair: (data: CreateRepairInput) => Promise<number>;
   advanceStatus: (id: number, status: RepairStatus) => Promise<void>;
   setNotRepaired: (id: number) => Promise<void>;
@@ -54,13 +62,14 @@ export const useRepairStore = create<RepairStore>((set, get) => ({
     }
   },
 
-  fetchStatusCounts: async () => {
-    const [counts, notPaidCount] = await Promise.all([getStatusCounts(), getNotPaidCount()]);
+  fetchStatusCounts: async (dateFrom?: string) => {
+    const [counts, notPaidCount] = await Promise.all([getStatusCounts(dateFrom), getNotPaidCount(dateFrom)]);
     set({ statusCounts: counts, notPaidCount });
   },
 
   addRepair: async (data) => {
     const id = await createRepair(data);
+    repairJustCreated = true;
     await get().fetchRepairs();
     await get().fetchStatusCounts();
     return id;

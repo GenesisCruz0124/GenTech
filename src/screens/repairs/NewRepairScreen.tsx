@@ -19,17 +19,112 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Linking } from 'react-native';
 import MultiImagePicker from '../../components/common/MultiImagePicker';
+import DatePickerField from '../../components/common/DatePickerField';
 import { saveRepairImage } from '../../repositories/repairImageRepository';
 import { RootStackParamList } from '../../navigation/types';
 import { useRepairStore } from '../../store/repairStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { getAllIssues, Issue } from '../../repositories/issueRepository';
 import { Customer, searchCustomers } from '../../repositories/customerRepository';
-import { Part, getAllParts } from '../../repositories/partsRepository';
+import { Part, getAllParts, autoCreatePartIfNotExists } from '../../repositories/partsRepository';
 import { addRepairPart } from '../../repositories/partsRepository';
+import { DeviceModel, searchDeviceModels, createDeviceModel } from '../../repositories/deviceModelRepository';
+import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import { Colors } from '../../constants/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NewRepair'>;
+
+function IssueSearchAdd({ issues, selectedIssues, onAdd, onRemove }: {
+  issues: { id: number; name: string }[];
+  selectedIssues: string[];
+  onAdd: (name: string) => void;
+  onRemove: (name: string) => void;
+}) {
+  const [query, setQuery] = React.useState('');
+  const filtered = query.length >= 1
+    ? issues.filter(i => i.name.toLowerCase().includes(query.toLowerCase()) && !selectedIssues.includes(i.name))
+    : [];
+
+  return (
+    <View>
+      {/* Selected issues */}
+      {selectedIssues.length > 0 && (
+        <View style={issueStyles.selectedList}>
+          {selectedIssues.map(name => (
+            <View key={name} style={issueStyles.selectedTag}>
+              <Text style={issueStyles.selectedTagText}>{name}</Text>
+              <TouchableOpacity onPress={() => onRemove(name)} style={{ marginLeft: 4 }}>
+                <MaterialCommunityIcons name="close" size={14} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Search + add row */}
+      <View style={issueStyles.searchRow}>
+        <TextInput
+          mode="outlined"
+          label="Search or type issue..."
+          value={query}
+          onChangeText={setQuery}
+          style={issueStyles.searchInput}
+          dense
+        />
+        {query.trim().length > 0 && !selectedIssues.includes(query.trim()) && (
+          <TouchableOpacity
+            style={issueStyles.addBtn}
+            onPress={() => { onAdd(query.trim()); setQuery(''); }}
+          >
+            <MaterialCommunityIcons name="plus-circle" size={22} color={Colors.primary} />
+            <Text style={issueStyles.addBtnText}>Add</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Suggestions */}
+      {filtered.length > 0 && (
+        <View style={issueStyles.suggestions}>
+          {filtered.slice(0, 6).map(issue => (
+            <TouchableOpacity
+              key={issue.id}
+              style={issueStyles.suggestionItem}
+              onPress={() => { onAdd(issue.name); setQuery(''); }}
+            >
+              <MaterialCommunityIcons name="plus" size={14} color={Colors.primary} style={{ marginRight: 6 }} />
+              <Text style={issueStyles.suggestionText}>{issue.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const issueStyles = StyleSheet.create({
+  selectedList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  selectedTag: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '15', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: Colors.primary + '30' },
+  selectedTagText: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  searchInput: { flex: 1, backgroundColor: Colors.surface },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 6 },
+  addBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+  suggestions: { backgroundColor: Colors.surface, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, marginTop: 4, overflow: 'hidden' },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  suggestionText: { fontSize: 13, color: Colors.text },
+});
+
+function SectionCard({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <MaterialCommunityIcons name={icon as any} size={16} color={Colors.primary} />
+        <Text style={styles.cardTitle}>{title}</Text>
+      </View>
+      {children}
+    </View>
+  );
+}
 
 const schema = z.object({
   customerName: z.string().min(1, 'Customer name is required'),
@@ -41,15 +136,48 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-export default function NewRepairScreen({ navigation }: Props) {
+export default function NewRepairScreen({ navigation, route }: Props) {
   const { addRepair } = useRepairStore();
   const { upsertByPhone } = useCustomerStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dateRecorded, setDateRecorded] = useState(new Date().toISOString().split('T')[0]);
+
+  // Pre-populate from navigation params
+  useEffect(() => {
+    if (route.params?.customerName) {
+      setValue('customerName', route.params.customerName);
+      if (route.params.customerPhone) setValue('customerPhone', route.params.customerPhone);
+    }
+    if (route.params?.deviceModel) {
+      setValue('deviceModel', route.params.deviceModel);
+      searchDeviceModels(route.params.deviceModel).then(results => {
+        const exact = results.find(m => m.name.toLowerCase() === route.params!.deviceModel!.toLowerCase());
+        if (exact?.brand_id) { setSelectedBrandId(exact.brand_id); setBrandName(exact.brand_name ?? ''); }
+      });
+    }
+    if (route.params?.initialIssue) {
+      setSelectedIssues(prev =>
+        prev.includes(route.params!.initialIssue!) ? prev : [route.params!.initialIssue!]
+      );
+    }
+  }, [route.params]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selectedIssues, setSelectedIssues] = useState<string[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<Customer[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Device model autocomplete
+  const [modelSuggestions, setModelSuggestions] = useState<DeviceModel[]>([]);
+  const [showModelSuggestions, setShowModelSuggestions] = useState(false);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
+
+  // Brand field
+  const [brands, setBrands] = useState<DeviceBrand[]>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState<number | null>(null);
+  const [brandName, setBrandName] = useState('');
+  const [brandSuggestions, setBrandSuggestions] = useState<DeviceBrand[]>([]);
+  const [showBrandSuggestions, setShowBrandSuggestions] = useState(false);
 
   // Parts required
   const [allParts, setAllParts] = useState<Part[]>([]);
@@ -59,6 +187,7 @@ export default function NewRepairScreen({ navigation }: Props) {
   useEffect(() => {
     getAllIssues().then(setIssues);
     getAllParts().then(setAllParts);
+    getAllDeviceBrands().then(setBrands);
   }, []);
 
   const { control, handleSubmit, setValue, formState: { errors } } = useForm<FormData>({
@@ -123,12 +252,18 @@ export default function NewRepairScreen({ navigation }: Props) {
         name: data.customerName,
         phone: data.customerPhone || '',
       });
+      // Save device model to list if it's new
+      if (!selectedModelId && data.deviceModel.trim()) {
+        await createDeviceModel(data.deviceModel.trim(), selectedBrandId ?? undefined);
+      }
+
       const repairId = await addRepair({
         customer_id: customerId,
         device_model: data.deviceModel,
         issue_desc: selectedIssues.join(', '),
         estimated_cost: parseFloat(data.estimatedCost),
         notes: data.notes || undefined,
+        created_at: dateRecorded,
       });
       // Save photos
       for (const uri of photos) {
@@ -138,6 +273,17 @@ export default function NewRepairScreen({ navigation }: Props) {
       for (const { part, qty } of selectedParts) {
         await addRepairPart(repairId, part.id, qty, part.selling_price);
       }
+
+      // Auto-create stock entry for the device model based on issue type
+      const modelName = data.deviceModel.trim();
+      if (modelName) {
+        const issuesLower = selectedIssues.join(', ').toLowerCase();
+        const isLcd = issuesLower.includes('lcd') || issuesLower.includes('display') || issuesLower.includes('screen');
+        const isBattery = issuesLower.includes('battery');
+        if (isLcd) await autoCreatePartIfNotExists(modelName, 'display', selectedBrandId ?? undefined).catch(() => {});
+        if (isBattery) await autoCreatePartIfNotExists(modelName, 'battery', selectedBrandId ?? undefined).catch(() => {});
+      }
+
       navigation.replace('RepairDetail', { repairId });
     } catch (e) {
       console.error(e);
@@ -147,173 +293,182 @@ export default function NewRepairScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        <Text style={styles.section}>Customer Info</Text>
+        {/* Main form card */}
+        <View style={styles.formCard}>
 
-        <Controller control={control} name="customerName" render={({ field: { onChange, value, onBlur } }) => (
-          <>
-            <TextInput
-              label="Customer Name *"
-              value={value}
-              onChangeText={async (text) => {
-                onChange(text);
-                if (text.length >= 2) {
-                  const results = await searchCustomers(text);
-                  setSuggestions(results);
-                  setShowSuggestions(results.length > 0);
-                } else {
-                  setShowSuggestions(false);
-                }
-              }}
-              mode="outlined"
-              style={styles.input}
-              error={!!errors.customerName}
+          {/* Date Recorded */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.primary }]} />
+              <Text style={styles.fieldGroupLabel}>Date Recorded</Text>
+            </View>
+            <DatePickerField
+              label=""
+              value={dateRecorded}
+              onChange={setDateRecorded}
+              maxDate={new Date()}
             />
-            {showSuggestions && (
-              <View style={styles.suggestionBox}>
-                {suggestions.map(c => (
-                  <TouchableOpacity
-                    key={c.id}
-                    style={styles.suggestionItem}
-                    onPress={() => {
-                      onChange(c.name);
-                      // Also fill phone via setValue equivalent — use setValue from useForm
-                      setShowSuggestions(false);
-                      setSuggestions([]);
-                      setValue('customerPhone', c.phone ?? '');
-                    }}
-                  >
-                    <Text style={styles.suggestionName}>{c.name}</Text>
-                    <Text style={styles.suggestionPhone}>{c.phone}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-          </>
-        )} />
-        <HelperText type="error" visible={!!errors.customerName}>{errors.customerName?.message}</HelperText>
-
-        <Controller control={control} name="customerPhone" render={({ field: { onChange, value } }) => (
-          <TextInput
-            label="Phone Number"
-            value={value}
-            onChangeText={onChange}
-            mode="outlined"
-            style={styles.input}
-            keyboardType="phone-pad"
-          />
-        )} />
-
-        <Text style={styles.section}>Device</Text>
-
-        <View style={styles.deviceRow}>
-          <Controller control={control} name="deviceModel" render={({ field: { onChange, value } }) => (
-            <TextInput
-              label="Device Model *"
-              value={value}
-              onChangeText={onChange}
-              mode="outlined"
-              style={styles.deviceInput}
-              placeholder="e.g. iPhone 13, Samsung A54"
-              error={!!errors.deviceModel}
-            />
-          )} />
-          <TouchableOpacity style={styles.cameraBtn} onPress={handleCameraSearch}>
-            <MaterialCommunityIcons name="camera-outline" size={26} color={Colors.primary} />
-            <Text style={styles.cameraBtnLabel}>Identify</Text>
-          </TouchableOpacity>
-        </View>
-        <HelperText type="error" visible={!!errors.deviceModel}>{errors.deviceModel?.message}</HelperText>
-        <Text style={styles.cameraHint}>Tap the camera to photo the device and search via Google Lens</Text>
-
-        <Text style={styles.section}>Issue(s)</Text>
-        {selectedIssues.length > 0 && (
-          <View style={styles.selectedBadge}>
-            <Text style={styles.selectedText}>{selectedIssues.join(' · ')}</Text>
           </View>
-        )}
-        <View style={styles.issueChips}>
-          {issues.map(issue => {
-            const active = selectedIssues.includes(issue.name);
-            return (
-              <TouchableOpacity
-                key={issue.id}
-                style={[styles.issueChip, active && styles.issueChipActive]}
-                onPress={() => toggleIssue(issue.name)}
-                activeOpacity={0.7}
-              >
-                {active && <MaterialCommunityIcons name="check" size={13} color="#fff" style={{ marginRight: 3 }} />}
-                <Text style={[styles.issueChipLabel, active && styles.issueChipLabelActive]}>
-                  {issue.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
 
-        {/* Parts Required */}
-        <Text style={styles.section}>Parts Required</Text>
-        {selectedParts.map(({ part, qty }) => (
-          <View key={part.id} style={styles.partRow}>
-            <View style={styles.partInfo}>
-              <Text style={styles.partName}>{part.name}</Text>
-              <Text style={styles.partMeta}>
-                {part.quantity} in stock · ₱{part.selling_price}
+          <View style={styles.fieldDivider} />
+
+          {/* Customer */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.primary }]} />
+              <Text style={styles.fieldGroupLabel}>Customer</Text>
+            </View>
+            <Controller control={control} name="customerName" render={({ field: { onChange, value } }) => (
+              <>
+                <TextInput label="Customer Name *" value={value} onChangeText={async (text) => {
+                  onChange(text);
+                  if (text.length >= 2) {
+                    const results = await searchCustomers(text);
+                    setSuggestions(results);
+                    setShowSuggestions(results.length > 0);
+                  } else { setShowSuggestions(false); }
+                }} mode="outlined" style={styles.input} error={!!errors.customerName} />
+                {showSuggestions && (
+                  <View style={styles.suggestionBox}>
+                    {suggestions.map(c => (
+                      <TouchableOpacity key={c.id} style={styles.suggestionItem}
+                        onPress={() => { onChange(c.name); setShowSuggestions(false); setSuggestions([]); setValue('customerPhone', c.phone ?? ''); }}>
+                        <Text style={styles.suggestionName}>{c.name}</Text>
+                        <Text style={styles.suggestionPhone}>{c.phone}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                <HelperText type="error" visible={!!errors.customerName}>{errors.customerName?.message}</HelperText>
+              </>
+            )} />
+          </View>
+
+          <View style={styles.fieldDivider} />
+
+          {/* Device */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.info }]} />
+              <Text style={styles.fieldGroupLabel}>Device</Text>
+            </View>
+            <Controller control={control} name="deviceModel" render={({ field: { onChange, value } }) => (
+              <>
+                <TextInput label="Device Model *" value={value} onChangeText={async (text) => {
+                  onChange(text); setSelectedModelId(null); setSelectedBrandId(null); setBrandName('');
+                  if (text.length >= 2) {
+                    const results = await searchDeviceModels(text);
+                    setModelSuggestions(results);
+                    setShowModelSuggestions(results.length > 0);
+                    const exact = results.find(m => m.name.toLowerCase() === text.toLowerCase());
+                    if (exact?.brand_id) { setSelectedBrandId(exact.brand_id); setBrandName(exact.brand_name ?? ''); }
+                  } else { setShowModelSuggestions(false); }
+                }} mode="outlined" style={styles.input} placeholder="e.g. iPhone 13, Samsung A54" error={!!errors.deviceModel} />
+                {showModelSuggestions && (
+                  <View style={styles.suggestionBox}>
+                    {modelSuggestions.map(m => (
+                      <TouchableOpacity key={m.id} style={styles.suggestionItem}
+                        onPress={() => {
+                          onChange(m.name);
+                          setSelectedModelId(m.id);
+                          setShowModelSuggestions(false);
+                          if (m.brand_id) { setSelectedBrandId(m.brand_id); setBrandName(m.brand_name ?? ''); }
+                        }}>
+                        <Text style={styles.suggestionName}>{m.name}</Text>
+                        {m.brand_name ? <Text style={styles.suggestionPhone}>{m.brand_name}</Text> : null}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                <HelperText type="error" visible={!!errors.deviceModel}>{errors.deviceModel?.message}</HelperText>
+              </>
+            )} />
+          </View>
+
+          <View style={styles.fieldDivider} />
+
+          {/* Brand — auto-filled from selected model */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.primary }]} />
+              <Text style={styles.fieldGroupLabel}>Brand</Text>
+            </View>
+            <View style={styles.brandDisplay}>
+              <MaterialCommunityIcons
+                name={selectedBrandId ? 'check-circle' : 'information-outline'}
+                size={16}
+                color={selectedBrandId ? Colors.success : Colors.textSecondary}
+              />
+              <Text style={[styles.brandDisplayText, !selectedBrandId && { color: Colors.textSecondary, fontStyle: 'italic' }]}>
+                {brandName || 'Auto-filled when a model is selected'}
               </Text>
             </View>
-            <View style={styles.partQtyRow}>
-              <TouchableOpacity onPress={() => setSelectedParts(p => p.map(x => x.part.id === part.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))}>
-                <MaterialCommunityIcons name="minus-circle-outline" size={22} color={Colors.primary} />
-              </TouchableOpacity>
-              <Text style={styles.partQty}>{qty}</Text>
-              <TouchableOpacity onPress={() => setSelectedParts(p => p.map(x => x.part.id === part.id ? { ...x, qty: Math.min(x.part.quantity, x.qty + 1) } : x))}>
-                <MaterialCommunityIcons name="plus-circle-outline" size={22} color={Colors.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setSelectedParts(p => p.filter(x => x.part.id !== part.id))} style={{ marginLeft: 8 }}>
-                <MaterialCommunityIcons name="close-circle-outline" size={22} color={Colors.error} />
-              </TouchableOpacity>
+          </View>
+
+          <View style={styles.fieldDivider} />
+
+          {/* Issues */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.warning }]} />
+              <Text style={styles.fieldGroupLabel}>Problem / Issue(s)</Text>
             </View>
+            <IssueSearchAdd
+              issues={issues}
+              selectedIssues={selectedIssues}
+              onAdd={(name) => { if (!selectedIssues.includes(name)) setSelectedIssues(prev => [...prev, name]); }}
+              onRemove={(name) => setSelectedIssues(prev => prev.filter(i => i !== name))}
+            />
           </View>
-        ))}
-        <Button mode="outlined" icon="plus" onPress={() => setPartPickerVisible(true)} style={styles.addPartBtn}>
-          Add Part
-        </Button>
-        {partPickerVisible && (
-          <View style={styles.partPicker}>
-            {allParts.filter(p => p.quantity > 0 && !selectedParts.find(s => s.part.id === p.id)).map(part => (
-              <TouchableOpacity
-                key={part.id}
-                style={styles.partPickerItem}
-                onPress={() => {
-                  setSelectedParts(prev => [...prev, { part, qty: 1 }]);
-                  setPartPickerVisible(false);
-                }}
-              >
-                <Text style={styles.partName}>{part.name}</Text>
-                <Text style={styles.partMeta}>{part.quantity} in stock · ₱{part.selling_price}</Text>
-              </TouchableOpacity>
-            ))}
-            {allParts.filter(p => p.quantity > 0 && !selectedParts.find(s => s.part.id === p.id)).length === 0 && (
-              <Text style={styles.partMeta}>No available parts in stock.</Text>
-            )}
+
+          <View style={styles.fieldDivider} />
+
+          {/* Cost */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.success }]} />
+              <Text style={styles.fieldGroupLabel}>Estimated Cost</Text>
+            </View>
+            <Controller control={control} name="estimatedCost" render={({ field: { onChange, value } }) => (
+              <TextInput label="Amount (₱) *" value={value} onChangeText={onChange} mode="outlined" style={styles.input} keyboardType="decimal-pad" error={!!errors.estimatedCost} />
+            )} />
+            <HelperText type="error" visible={!!errors.estimatedCost}>{errors.estimatedCost?.message}</HelperText>
           </View>
-        )}
 
-        <Text style={styles.section}>Photos</Text>
-        <MultiImagePicker images={photos} onChange={setPhotos} maxImages={6} />
+          <View style={styles.fieldDivider} />
 
-        <Text style={styles.section}>Cost & Notes</Text>
+          {/* Notes */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.textSecondary }]} />
+              <Text style={styles.fieldGroupLabel}>Notes / Instructions (optional)</Text>
+            </View>
+            <Controller control={control} name="notes" render={({ field: { onChange, value } }) => (
+              <TextInput
+                label="e.g. Handle with care, customer will call back..."
+                value={value}
+                onChangeText={onChange}
+                mode="outlined"
+                style={styles.input}
+                multiline
+                numberOfLines={3}
+              />
+            )} />
+          </View>
 
-        <Controller control={control} name="estimatedCost" render={({ field: { onChange, value } }) => (
-          <TextInput label="Estimated Cost (₱) *" value={value} onChangeText={onChange} mode="outlined" style={styles.input} keyboardType="decimal-pad" error={!!errors.estimatedCost} />
-        )} />
-        <HelperText type="error" visible={!!errors.estimatedCost}>{errors.estimatedCost?.message}</HelperText>
+        </View>
 
-        <Controller control={control} name="notes" render={({ field: { onChange, value } }) => (
-          <TextInput label="Notes (optional)" value={value} onChangeText={onChange} mode="outlined" style={styles.input} multiline numberOfLines={2} />
-        )} />
+        {/* Photos */}
+        <View style={styles.photoCard}>
+          <View style={styles.fieldGroupHeader}>
+            <MaterialCommunityIcons name="camera-outline" size={15} color={Colors.primary} />
+            <Text style={[styles.fieldGroupLabel, { marginLeft: 6 }]}>Photos (optional)</Text>
+          </View>
+          <MultiImagePicker images={photos} onChange={setPhotos} maxImages={6} />
+        </View>
 
         <Button
           mode="contained"
@@ -322,6 +477,7 @@ export default function NewRepairScreen({ navigation }: Props) {
           disabled={isSubmitting}
           style={styles.button}
           contentStyle={styles.buttonContent}
+          icon="check-circle"
         >
           Create Repair
         </Button>
@@ -331,35 +487,93 @@ export default function NewRepairScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
-  container: { padding: 16, paddingBottom: 32 },
-  section: { fontSize: 13, fontWeight: '700', color: Colors.primary, marginTop: 16, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 },
+  flex: { flex: 1, backgroundColor: '#F2F4F7' },
+  container: { padding: 14, paddingBottom: 120, gap: 12 },
+
+  // Main form card
+  formCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+  fieldGroup: { paddingHorizontal: 16, paddingVertical: 14 },
+  fieldGroupHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  fieldGroupDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  fieldGroupLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.7 },
+  fieldDivider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 16 },
+
+  // Photo card
+  photoCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+
   input: { marginBottom: 2, backgroundColor: Colors.surface },
-  suggestionBox: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 8, marginTop: 2, marginBottom: 6, elevation: 4, zIndex: 99 },
-  suggestionItem: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  suggestionBox: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    marginTop: 2,
+    marginBottom: 4,
+    elevation: 8,
+    zIndex: 99,
+    overflow: 'hidden',
+  },
+  suggestionItem: { paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: Colors.border },
   suggestionName: { fontSize: 14, fontWeight: '600', color: Colors.text },
   suggestionPhone: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
-  deviceRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  deviceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   deviceInput: { flex: 1, backgroundColor: Colors.surface },
-  cameraBtn: { alignItems: 'center', justifyContent: 'center', padding: 6 },
-  cameraBtnLabel: { fontSize: 10, color: Colors.primary, marginTop: 2 },
-  cameraHint: { fontSize: 11, color: Colors.textSecondary, marginBottom: 4, fontStyle: 'italic' },
-  selectedBadge: { backgroundColor: Colors.primary + '15', borderRadius: 8, padding: 8, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+
+  // kept for SectionCard (unused but harmless)
+  card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, elevation: 2 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  cardTitle: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  cameraBtn: { padding: 8 },
+  cameraBtnLabel: { fontSize: 10, color: Colors.primary },
+  cameraHint: { fontSize: 11, color: Colors.textSecondary },
+  selectedBadge: { backgroundColor: Colors.primary + '12', borderRadius: 8, padding: 8, marginBottom: 8 },
   selectedText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
-  partRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 8, padding: 10, marginBottom: 6 },
-  partInfo: { flex: 1 },
-  partName: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  partMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  partQtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  partQty: { fontSize: 16, fontWeight: '700', color: Colors.primary, minWidth: 20, textAlign: 'center' },
-  addPartBtn: { marginBottom: 8, borderRadius: 8 },
-  partPicker: { backgroundColor: Colors.surface, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, marginBottom: 8, overflow: 'hidden' },
-  partPickerItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  issueChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  issueChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  issueChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  issueChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background },
   issueChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   issueChipLabel: { fontSize: 12, color: Colors.text },
-  issueChipLabelActive: { color: '#fff', fontWeight: '600' },
-  button: { marginTop: 20, borderRadius: 8 },
-  buttonContent: { paddingVertical: 6 },
+  issueChipLabelActive: { color: '#fff', fontWeight: '700' },
+  partRow: { flexDirection: 'row', alignItems: 'center', padding: 10, marginBottom: 6 },
+  partInfo: { flex: 1 },
+  partName: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  partMeta: { fontSize: 12, color: Colors.textSecondary },
+  partQtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  partQty: { fontSize: 17, fontWeight: '700', color: Colors.primary },
+  addPartBtn: { borderRadius: 10 },
+  partPicker: { backgroundColor: Colors.background, borderRadius: 10, overflow: 'hidden' },
+  partPickerItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+
+  brandDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  brandDisplayText: { fontSize: 14, color: Colors.text, flex: 1 },
+
+  button: { borderRadius: 14 },
+  buttonContent: { paddingVertical: 10 },
 });

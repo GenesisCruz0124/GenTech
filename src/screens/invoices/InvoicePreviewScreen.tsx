@@ -136,19 +136,6 @@ export default function InvoicePreviewScreen({ route }: Props) {
 
         <Divider style={styles.divider} />
 
-        {(invoiceData.parts ?? []).map((p: any, i: number) => (
-          <View key={i} style={styles.partRow}>
-            <Text style={styles.partName}>{p.name} × {p.quantity}</Text>
-            <Text style={styles.partPrice}>{formatCurrency(p.unit_price * p.quantity)}</Text>
-          </View>
-        ))}
-        {invoiceData.labor_cost && (
-          <View style={styles.partRow}>
-            <Text style={styles.partName}>Labor</Text>
-            <Text style={styles.partPrice}>{formatCurrency(invoiceData.labor_cost)}</Text>
-          </View>
-        )}
-
         <Divider style={styles.divider} />
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TOTAL</Text>

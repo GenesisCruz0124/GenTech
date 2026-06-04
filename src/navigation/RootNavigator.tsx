@@ -8,18 +8,21 @@ import BottomTabNavigator from './BottomTabNavigator';
 import NewRepairScreen from '../screens/repairs/NewRepairScreen';
 import RepairDetailScreen from '../screens/repairs/RepairDetailScreen';
 import PartFormScreen from '../screens/parts/PartFormScreen';
-import DeviceSaleFormScreen from '../screens/devices/DeviceSaleFormScreen';
-import DevicePurchaseFormScreen from '../screens/devices/DevicePurchaseFormScreen';
+import RestockScreen from '../screens/parts/RestockScreen';
 import CustomerListScreen from '../screens/customers/CustomerListScreen';
 import CustomerDetailScreen from '../screens/customers/CustomerDetailScreen';
 import InvoicePreviewScreen from '../screens/invoices/InvoicePreviewScreen';
 import InvoiceHistoryScreen from '../screens/invoices/InvoiceHistoryScreen';
 import CategoryScreen from '../screens/categories/CategoryScreen';
 import DeviceBrandScreen from '../screens/categories/DeviceBrandScreen';
+import DeviceModelScreen from '../screens/categories/DeviceModelScreen';
 import IssueListScreen from '../screens/categories/IssueListScreen';
 import ShopInfoScreen from '../screens/more/ShopInfoScreen';
+import BackupScreen from '../screens/more/BackupScreen';
 import StaffListScreen from '../screens/staff/StaffListScreen';
 import StaffPerformanceScreen from '../screens/staff/StaffPerformanceScreen';
+import SupplierDetailScreen from '../screens/suppliers/SupplierDetailScreen';
+import CoTechDetailScreen from '../screens/cotech/CoTechDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -38,21 +41,24 @@ export default function RootNavigator() {
           component={BottomTabNavigator}
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="NewRepair" component={NewRepairScreen} options={{ title: 'New Repair' }} />
+        <Stack.Screen name="NewRepair" component={NewRepairScreen} options={{ title: 'New Repair', presentation: 'modal' }} />
         <Stack.Screen name="RepairDetail" component={RepairDetailScreen} options={{ title: 'Repair Details' }} />
-        <Stack.Screen name="PartForm" component={PartFormScreen} options={({ route }) => ({ title: route.params?.partId ? 'Edit Part' : 'Add Part' })} />
-        <Stack.Screen name="DeviceSaleForm" component={DeviceSaleFormScreen} options={{ title: 'Record Device Sale' }} />
-        <Stack.Screen name="DevicePurchaseForm" component={DevicePurchaseFormScreen} options={{ title: 'Record Device Purchase' }} />
+        <Stack.Screen name="PartForm" component={PartFormScreen} options={({ route }) => ({ title: route.params?.partId ? 'Edit Stock' : 'Add Stock' })} />
+        <Stack.Screen name="Restock" component={RestockScreen} options={({ route }) => ({ title: `Restock — ${route.params.partName}` })} />
         <Stack.Screen name="CustomerList" component={CustomerListScreen} options={{ title: 'Customers' }} />
-        <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} options={{ title: 'Customer' }} />
+        <Stack.Screen name="CustomerDetail" component={CustomerDetailScreen} options={{ title: 'Customer Details' }} />
         <Stack.Screen name="InvoicePreview" component={InvoicePreviewScreen} options={{ title: 'Invoice' }} />
         <Stack.Screen name="InvoiceHistory" component={InvoiceHistoryScreen} options={{ title: 'Invoice History' }} />
         <Stack.Screen name="CategoryList" component={CategoryScreen} options={{ title: 'Categories' }} />
-        <Stack.Screen name="DeviceBrandList" component={DeviceBrandScreen} options={{ title: 'Device Brands' }} />
-        <Stack.Screen name="IssueList" component={IssueListScreen} options={{ title: 'Issue List' }} />
-        <Stack.Screen name="ShopInfo" component={ShopInfoScreen} options={{ title: 'Shop Information' }} />
+        <Stack.Screen name="DeviceBrandList" component={DeviceBrandScreen} options={{ title: 'Brands' }} />
+        <Stack.Screen name="DeviceModelList" component={DeviceModelScreen} options={{ title: 'Models' }} />
+        <Stack.Screen name="IssueList" component={IssueListScreen} options={{ title: 'Problems & Issues' }} />
+        <Stack.Screen name="ShopInfo" component={ShopInfoScreen} options={{ title: 'Technician Information' }} />
+        <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'Backup & Restore' }} />
         <Stack.Screen name="StaffList" component={StaffListScreen} options={{ title: 'Staff' }} />
         <Stack.Screen name="StaffPerformance" component={StaffPerformanceScreen} options={{ title: 'Staff Performance' }} />
+        <Stack.Screen name="SupplierDetail" component={SupplierDetailScreen} options={{ title: 'Supplier Details' }} />
+        <Stack.Screen name="CoTechDetail" component={CoTechDetailScreen} options={{ title: 'Co-Tech Details' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

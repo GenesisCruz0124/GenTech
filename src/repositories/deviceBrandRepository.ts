@@ -4,11 +4,21 @@ export interface DeviceBrand {
   id: number;
   name: string;
   created_at: string;
+  model_count?: number;
+  model_names?: string | null;
 }
 
 export async function getAllDeviceBrands(): Promise<DeviceBrand[]> {
   const db = await getDB();
-  return db.getAllAsync<DeviceBrand>('SELECT * FROM device_brands ORDER BY name ASC');
+  return db.getAllAsync<DeviceBrand>(
+    `SELECT b.*,
+       COUNT(dm.id) AS model_count,
+       GROUP_CONCAT(dm.name, ', ') AS model_names
+     FROM device_brands b
+     LEFT JOIN device_models dm ON dm.brand_id = b.id
+     GROUP BY b.id
+     ORDER BY b.name ASC`
+  );
 }
 
 export async function createDeviceBrand(name: string): Promise<number> {

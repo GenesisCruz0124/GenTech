@@ -1,26 +1,25 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Divider, Text, TextInput } from 'react-native-paper';
+import { Button, Text, TextInput } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getAllSettings, setSetting } from '../../repositories/settingsRepository';
 import { Colors } from '../../constants/colors';
 
-const FIELDS = [
-  { section: 'Shop Information', items: [
-    { key: 'shop_name',    label: 'Shop Name' },
-    { key: 'shop_address', label: 'Address', multiline: true },
-  ]},
-  { section: 'Personal Information', items: [
-    { key: 'owner_name',     label: 'Full Name' },
-    { key: 'owner_email',    label: 'Email Address', keyboard: 'email-address' as const, lower: true },
-    { key: 'owner_phone',    label: 'Phone Number', keyboard: 'phone-pad' as const },
-    { key: 'signed_in_date', label: 'Signed in Date', placeholder: 'e.g. January 1, 2025' },
-    { key: 'renewal_date',   label: 'Date Renewal',   placeholder: 'e.g. January 1, 2026' },
-  ]},
+const SECTIONS = [
+  {
+    title: 'Technician Information',
+    icon: 'account-wrench-outline',
+    fields: [
+      { key: 'owner_name',   label: 'Full Name',     icon: 'account-outline',  keyboard: 'default' as const },
+      { key: 'owner_phone',  label: 'Phone Number',  icon: 'phone-outline',    keyboard: 'phone-pad' as const },
+      { key: 'shop_name',    label: 'Shop Name',     icon: 'store-outline',    keyboard: 'default' as const },
+      { key: 'shop_address', label: 'Location',      icon: 'map-marker-outline', multiline: true },
+    ],
+  },
 ];
 
-// All keys defined in the form
-const ALL_KEYS = FIELDS.flatMap(s => s.items.map(i => i.key));
+const ALL_KEYS = SECTIONS.flatMap(s => s.fields.map(f => f.key));
 
 export default function ShopInfoScreen() {
   const [values, setValues] = useState<Record<string, string>>({});
@@ -29,7 +28,6 @@ export default function ShopInfoScreen() {
 
   useFocusEffect(useCallback(() => {
     getAllSettings().then(loaded => {
-      // Merge loaded values — keep any in-state values already typed
       setValues(prev => ({ ...loaded, ...prev }));
     }).catch(() => {});
   }, []));
@@ -40,14 +38,13 @@ export default function ShopInfoScreen() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Save every defined field key (even if empty string)
       for (const key of ALL_KEYS) {
         await setSetting(key, values[key] ?? '');
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: any) {
-      Alert.alert('Error', `Could not save settings: ${e?.message ?? e}`);
+      Alert.alert('Error', `Could not save: ${e?.message ?? e}`);
     } finally {
       setSaving(false);
     }
@@ -56,25 +53,34 @@ export default function ShopInfoScreen() {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        {FIELDS.map(({ section, items }) => (
-          <View key={section}>
-            <Text style={styles.section}>{section}</Text>
-            {items.map(field => (
-              <TextInput
-                key={field.key}
-                label={field.label}
-                value={values[field.key] ?? ''}
-                onChangeText={val => set(field.key, val)}
-                mode="outlined"
-                style={styles.input}
-                keyboardType={field.keyboard ?? 'default'}
-                autoCapitalize={field.lower ? 'none' : 'words'}
-                multiline={field.multiline}
-                numberOfLines={field.multiline ? 3 : 1}
-                placeholder={field.placeholder}
-              />
+
+        {SECTIONS.map(section => (
+          <View key={section.title} style={styles.card}>
+            <View style={styles.cardHeader}>
+              <MaterialCommunityIcons name={section.icon as any} size={17} color={Colors.primary} />
+              <Text style={styles.cardTitle}>{section.title}</Text>
+            </View>
+
+            {section.fields.map((field, idx) => (
+              <View key={field.key} style={[styles.fieldRow, idx < section.fields.length - 1 && styles.fieldBorder]}>
+                <View style={styles.fieldIcon}>
+                  <MaterialCommunityIcons name={field.icon as any} size={18} color={Colors.textSecondary} />
+                </View>
+                <TextInput
+                  label={field.label}
+                  value={values[field.key] ?? ''}
+                  onChangeText={val => set(field.key, val)}
+                  mode="flat"
+                  style={styles.fieldInput}
+                  underlineColor="transparent"
+                  activeUnderlineColor={Colors.primary}
+                  keyboardType={field.keyboard ?? 'default'}
+                  autoCapitalize={(field as any).lower ? 'none' : 'words'}
+                  multiline={field.multiline}
+                  numberOfLines={field.multiline ? 3 : 1}
+                />
+              </View>
             ))}
-            <Divider style={styles.divider} />
           </View>
         ))}
 
@@ -83,12 +89,13 @@ export default function ShopInfoScreen() {
           onPress={handleSave}
           loading={saving}
           disabled={saving}
-          style={styles.button}
-          contentStyle={styles.buttonContent}
-          icon={saved ? 'check' : undefined}
+          icon={saved ? 'check' : 'content-save-outline'}
+          style={styles.saveBtn}
+          contentStyle={styles.saveBtnContent}
         >
-          {saved ? 'Saved!' : 'Save'}
+          {saved ? 'Saved!' : 'Save Changes'}
         </Button>
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -96,10 +103,35 @@ export default function ShopInfoScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: Colors.background },
-  container: { padding: 16, paddingBottom: 32 },
-  section: { fontSize: 13, fontWeight: '700', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, marginTop: 4 },
-  input: { marginBottom: 10, backgroundColor: Colors.surface },
-  divider: { marginBottom: 16 },
-  button: { borderRadius: 8 },
-  buttonContent: { paddingVertical: 6 },
+  container: { padding: 14, paddingBottom: 40, gap: 12 },
+
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.primary + '08',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  cardTitle: { fontSize: 13, fontWeight: '700', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.6 },
+
+  fieldRow: { flexDirection: 'row', alignItems: 'center', paddingLeft: 12 },
+  fieldBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
+  fieldIcon: { width: 36, alignItems: 'center', paddingTop: 16 },
+  fieldInput: { flex: 1, backgroundColor: 'transparent', fontSize: 15 },
+
+  saveBtn: { borderRadius: 12 },
+  saveBtnContent: { paddingVertical: 6 },
 });

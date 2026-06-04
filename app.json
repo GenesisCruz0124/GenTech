@@ -2,12 +2,18 @@
   "expo": {
     "name": "GenTech",
     "slug": "gentech-repair",
-    "version": "1.0.1",
+    "version": "1.2.1",
     "scheme": "gentech",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.gentech.repairshop",
+      "icon": "./assets/icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1976D2"
+      },
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -21,6 +27,7 @@
     },
     "plugins": [
       "expo-sqlite",
+      "expo-contacts",
       [
         "expo-image-picker",
         {
@@ -28,7 +35,8 @@
           "cameraPermission": "Allow GenTech to use your camera to capture device photos."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-document-picker"
     ],
     "extra": {
       "eas": {

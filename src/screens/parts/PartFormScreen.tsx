@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, HelperText, Menu, Text, TextInput } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -9,7 +10,7 @@ import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
 import { getPartById } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
-import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
+import { searchDeviceModels, DeviceModel } from '../../repositories/deviceModelRepository';
 import { Colors } from '../../constants/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PartForm'>;
@@ -20,19 +21,15 @@ const schema = z.object({
   quantity: z.string().min(1, 'Quantity is required'),
   low_stock_threshold: z.string().optional(),
   cost_price: z.string().min(1, 'Cost price is required'),
-  selling_price: z.string().min(1, 'Selling price is required'),
+  selling_price: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
 
-const FIELDS = ['name', 'sku', 'quantity', 'low_stock_threshold', 'cost_price', 'selling_price'] as const;
+const FIELDS = ['low_stock_threshold', 'cost_price'] as const;
 const FIELD_LABELS: Record<typeof FIELDS[number], string> = {
-  name: 'Part Name *',
-  sku: 'SKU (optional)',
-  quantity: 'Quantity *',
   low_stock_threshold: 'Low Stock Alert At',
-  cost_price: 'Cost Price (₱) *',
-  selling_price: 'Selling Price (₱) *',
+  cost_price: 'Cost Price (₱)',
 };
 
 export default function PartFormScreen({ route, navigation }: Props) {
@@ -41,50 +38,52 @@ export default function PartFormScreen({ route, navigation }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [brands, setBrands] = useState<DeviceBrand[]>([]);
+  const [categoryInput, setCategoryInput] = useState('');
+  const [categorySuggestions, setCategorySuggestions] = useState<Category[]>([]);
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+
+  // Brand — read-only, auto-filled from selected model
   const [brandId, setBrandId] = useState<number | null>(null);
-  const [brandMenuVisible, setBrandMenuVisible] = useState(false);
+  const [brandInput, setBrandInput] = useState('');
+
+  // Model autocomplete
+  const [modelSuggestions, setModelSuggestions] = useState<DeviceModel[]>([]);
+  const [showModelSuggestions, setShowModelSuggestions] = useState(false);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', sku: '', quantity: '0', low_stock_threshold: '2', cost_price: '', selling_price: '' },
+    defaultValues: { name: '', quantity: '0', low_stock_threshold: '2', cost_price: '0' },
   });
 
   useEffect(() => {
     getAllCategories().then(setCategories);
-    getAllDeviceBrands().then(setBrands);
     if (partId) {
       getPartById(partId).then(p => {
         if (p) {
           reset({
             name: p.name,
-            sku: p.sku ?? '',
             quantity: String(p.quantity),
             low_stock_threshold: String(p.low_stock_threshold),
             cost_price: String(p.cost_price),
-            selling_price: String(p.selling_price),
           });
           setCategoryId(p.category_id);
+          if (p.category_name) setCategoryInput(p.category_name);
           setBrandId(p.brand_id);
+          if (p.brand_name) setBrandInput(p.brand_name);
         }
       });
     }
   }, [partId]);
-
-  const selectedCategory = categories.find(c => c.id === categoryId);
-  const selectedBrand = brands.find(b => b.id === brandId);
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
       const payload = {
         name: data.name,
-        sku: data.sku || undefined,
         quantity: parseInt(data.quantity),
         low_stock_threshold: parseInt(data.low_stock_threshold || '5'),
         cost_price: parseFloat(data.cost_price),
-        selling_price: parseFloat(data.selling_price),
+        selling_price: 0,
         category_id: categoryId ?? undefined,
         brand_id: brandId ?? undefined,
       };
@@ -99,68 +98,150 @@ export default function PartFormScreen({ route, navigation }: Props) {
     }
   };
 
+
   return (
-    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-        {/* 1. Device Brand */}
-        <Text style={styles.catLabel}>Device Brand (optional)</Text>
-        <Menu
-          visible={brandMenuVisible}
-          onDismiss={() => setBrandMenuVisible(false)}
-          anchor={
-            <TouchableOpacity style={styles.catPicker} onPress={() => setBrandMenuVisible(true)}>
-              <Text style={selectedBrand ? styles.catSelected : styles.catPlaceholder}>
-                {selectedBrand ? selectedBrand.name : 'Select a brand...'}
-              </Text>
-            </TouchableOpacity>
-          }
-        >
-          <Menu.Item title="— None —" onPress={() => { setBrandId(null); setBrandMenuVisible(false); }} />
-          {brands.map(b => (
-            <Menu.Item key={b.id} title={b.name} onPress={() => { setBrandId(b.id); setBrandMenuVisible(false); }} />
-          ))}
-        </Menu>
+        <View style={styles.formCard}>
 
-        {/* 2. Category */}
-        <Text style={styles.catLabel}>Category (optional)</Text>
-        <Menu
-          visible={menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <TouchableOpacity style={styles.catPicker} onPress={() => setMenuVisible(true)}>
-              <Text style={selectedCategory ? styles.catSelected : styles.catPlaceholder}>
-                {selectedCategory ? selectedCategory.name : 'Select a category...'}
-              </Text>
-            </TouchableOpacity>
-          }
-        >
-          <Menu.Item title="— None —" onPress={() => { setCategoryId(null); setMenuVisible(false); }} />
-          {categories.map(c => (
-            <Menu.Item key={c.id} title={c.name} onPress={() => { setCategoryId(c.id); setMenuVisible(false); }} />
-          ))}
-        </Menu>
+          {/* Model */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.info }]} />
+              <Text style={styles.groupLabel}>Device Model</Text>
+            </View>
+            <Controller control={control} name="name" render={({ field: { onChange, value } }) => (
+              <>
+                <TextInput label="Model *" value={value} onChangeText={async (text) => {
+                  onChange(text);
+                  if (text.length >= 2) { const r = await searchDeviceModels(text); setModelSuggestions(r); setShowModelSuggestions(r.length > 0); }
+                  else { setShowModelSuggestions(false); }
+                }} mode="outlined" style={styles.input} placeholder="e.g. iPhone 13, Galaxy A54..." error={!!errors.name} />
+                {showModelSuggestions && (
+                  <View style={styles.suggestionBox}>
+                    {modelSuggestions.map(m => (
+                      <TouchableOpacity key={m.id} style={styles.suggestionItem}
+                        onPress={() => {
+                          onChange(m.name);
+                          setShowModelSuggestions(false);
+                          if (m.brand_id && m.brand_name) {
+                            setBrandId(m.brand_id);
+                            setBrandInput(m.brand_name);
+                          }
+                        }}>
+                        <Text style={styles.suggestionText}>{m.name}</Text>
+                        {m.brand_name ? <Text style={styles.suggestionSub}>{m.brand_name}</Text> : null}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+                <HelperText type="error" visible={!!errors.name}>{errors.name?.message}</HelperText>
+              </>
+            )} />
+          </View>
 
-        {/* 3. Rest of the fields */}
-        {FIELDS.map(field => (
-          <Controller key={field} control={control} name={field} render={({ field: { onChange, value } }) => (
-            <>
-              <TextInput
-                label={FIELD_LABELS[field]}
-                value={value}
-                onChangeText={onChange}
-                mode="outlined"
-                style={styles.input}
-                keyboardType={['quantity', 'low_stock_threshold', 'cost_price', 'selling_price'].includes(field) ? 'decimal-pad' : 'default'}
-                error={!!errors[field]}
+          <View style={styles.divider} />
+
+          {/* Brand — auto-filled from selected model */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.primary }]} />
+              <Text style={styles.groupLabel}>Brand</Text>
+            </View>
+            <View style={styles.brandDisplay}>
+              <MaterialCommunityIcons
+                name={brandId ? 'check-circle' : 'information-outline'}
+                size={16}
+                color={brandId ? Colors.success : Colors.textSecondary}
               />
-              <HelperText type="error" visible={!!errors[field]}>{errors[field]?.message}</HelperText>
-            </>
-          )} />
-        ))}
+              <Text style={[styles.brandDisplayText, !brandId && { color: Colors.textSecondary, fontStyle: 'italic' }]}>
+                {brandInput || 'Auto-filled when a model is selected'}
+              </Text>
+            </View>
+          </View>
 
-        <Button mode="contained" onPress={handleSubmit(onSubmit)} loading={isSubmitting} disabled={isSubmitting} style={styles.button} contentStyle={styles.buttonContent}>
-          {partId ? 'Save Changes' : 'Add Part'}
+          <View style={styles.divider} />
+
+          {/* Category */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.secondary }]} />
+              <Text style={styles.groupLabel}>Category</Text>
+            </View>
+            <TextInput label="Category" value={categoryInput} onChangeText={(text) => {
+              setCategoryInput(text); setCategoryId(null);
+              const f = text.length >= 1 ? categories.filter(c => c.name.toLowerCase().includes(text.toLowerCase())) : categories;
+              setCategorySuggestions(f); setShowCategorySuggestions(f.length > 0 && text.length >= 1);
+            }} mode="outlined" style={styles.input} placeholder="e.g. Display, Battery, Camera..." />
+            {showCategorySuggestions && (
+              <View style={styles.suggestionBox}>
+                {categorySuggestions.map(c => (
+                  <TouchableOpacity key={c.id} style={styles.suggestionItem}
+                    onPress={() => { setCategoryId(c.id); setCategoryInput(c.name); setShowCategorySuggestions(false); }}>
+                    <Text style={styles.suggestionText}>{c.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Stock details */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.success }]} />
+              <Text style={styles.groupLabel}>Stock Details</Text>
+            </View>
+
+            {/* Quantity stepper */}
+            <Controller control={control} name="quantity" render={({ field: { onChange, value } }) => {
+              const qty = parseInt(value) || 0;
+              return (
+                <View style={styles.stepperRow}>
+                  <Text style={styles.stepperLabel}>Quantity</Text>
+                  <View style={styles.stepper}>
+                    <TouchableOpacity style={styles.stepBtn}
+                      onPress={() => onChange(String(Math.max(0, qty - 1)))}>
+                      <MaterialCommunityIcons name="minus" size={20} color={qty <= 0 ? Colors.border : Colors.primary} />
+                    </TouchableOpacity>
+                    <TextInput
+                      value={value}
+                      onChangeText={v => onChange(v.replace(/[^0-9]/g, ''))}
+                      mode="flat"
+                      style={styles.stepperInput}
+                      keyboardType="numeric"
+                      underlineColor="transparent"
+                      activeUnderlineColor={Colors.primary}
+                      dense
+                    />
+                    <TouchableOpacity style={styles.stepBtn}
+                      onPress={() => onChange(String(qty + 1))}>
+                      <MaterialCommunityIcons name="plus" size={20} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }} />
+
+            {FIELDS.map(field => (
+              <Controller key={field} control={control} name={field} render={({ field: { onChange, value } }) => (
+                <>
+                  <TextInput label={FIELD_LABELS[field]} value={value} onChangeText={onChange} mode="outlined" style={styles.input}
+                    keyboardType="decimal-pad"
+                    error={!!errors[field]} />
+                  <HelperText type="error" visible={!!errors[field]}>{errors[field]?.message}</HelperText>
+                </>
+              )} />
+            ))}
+          </View>
+
+        </View>
+
+        <Button mode="contained" onPress={handleSubmit(onSubmit)} loading={isSubmitting} disabled={isSubmitting}
+          style={styles.button} contentStyle={styles.buttonContent} icon="check-circle">
+          {partId ? 'Save Changes' : 'Add Stock'}
         </Button>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -168,13 +249,62 @@ export default function PartFormScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: Colors.background },
-  container: { padding: 16 },
+  flex: { flex: 1, backgroundColor: '#F2F4F7' },
+  container: { padding: 14, paddingBottom: 120, gap: 12 },
+
+  // Unified form card
+  formCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+  },
+  fieldGroup: { paddingHorizontal: 16, paddingVertical: 14 },
+  fieldGroupHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 8 },
+  groupLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.7 },
+  divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 16 },
+
   input: { marginBottom: 2, backgroundColor: Colors.surface },
-  catLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 8, marginBottom: 4 },
-  catPicker: { borderWidth: 1, borderColor: Colors.border, borderRadius: 4, padding: 14, backgroundColor: Colors.surface, marginBottom: 8 },
+  brandDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  brandDisplayText: { fontSize: 14, color: Colors.text, flex: 1 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingVertical: 4 },
+  stepperLabel: { fontSize: 14, color: Colors.text, fontWeight: '500' },
+  stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  stepBtn: { width: 42, height: 42, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
+  stepperInput: { width: 56, textAlign: 'center', fontSize: 18, fontWeight: '700', backgroundColor: Colors.surface, height: 42 },
+  suggestionBox: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, marginTop: 2, marginBottom: 4, elevation: 6, overflow: 'hidden' },
+  suggestionItem: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  suggestionText: { fontSize: 14, fontWeight: '500', color: Colors.text },
+  suggestionSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+
+  // kept for safety
+  card: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, elevation: 2 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  cardTitle: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  pickerField: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, marginBottom: 8 },
+  pickerLabel: { fontSize: 11, color: Colors.textSecondary, marginRight: 6 },
+  pickerValue: { flex: 1, fontSize: 14, color: Colors.text },
+  pickerPlaceholder: { flex: 1, fontSize: 14, color: Colors.textSecondary },
+  catLabel: { fontSize: 12, color: Colors.textSecondary },
+  catPicker: { padding: 14, borderRadius: 8, borderWidth: 1, borderColor: Colors.border },
   catSelected: { fontSize: 16, color: Colors.text },
   catPlaceholder: { fontSize: 16, color: Colors.textSecondary },
-  button: { marginTop: 16, borderRadius: 8 },
-  buttonContent: { paddingVertical: 6 },
+
+  button: { borderRadius: 14 },
+  buttonContent: { paddingVertical: 10 },
 });

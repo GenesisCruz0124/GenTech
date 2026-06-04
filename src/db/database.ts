@@ -23,3 +23,11 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
   }
   return initPromise;
 }
+
+export async function resetDB(): Promise<void> {
+  if (db) {
+    try { await db.closeAsync(); } catch {}
+    db = null;
+  }
+  initPromise = null;
+}

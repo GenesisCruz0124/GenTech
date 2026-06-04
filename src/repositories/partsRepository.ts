@@ -167,8 +167,42 @@ export async function syncCostPriceFromLastPurchase(partId: number): Promise<voi
   }
 }
 
+export async function autoCreatePartIfNotExists(
+  modelName: string,
+  categoryKeyword: string,
+  brandId?: number
+): Promise<void> {
+  const db = await getDB();
+  const cat = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM categories WHERE LOWER(name) LIKE ? LIMIT 1`,
+    [`%${categoryKeyword.toLowerCase()}%`]
+  );
+  if (!cat) return;
+  const existing = await db.getFirstAsync<{ id: number }>(
+    `SELECT id FROM parts WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) AND category_id = ? LIMIT 1`,
+    [modelName, cat.id]
+  );
+  if (existing) return;
+  await db.runAsync(
+    `INSERT INTO parts (name, quantity, low_stock_threshold, cost_price, selling_price, category_id, brand_id)
+     VALUES (?, 0, 1, 0, 0, ?, ?)`,
+    [modelName.trim(), cat.id, brandId ?? null]
+  );
+}
+
+export async function getModelsWithActiveRepairs(): Promise<string[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ device_model: string }>(
+    `SELECT DISTINCT device_model FROM repairs
+     WHERE status NOT IN ('delivered', 'not_repaired') AND device_model IS NOT NULL AND device_model != ''`
+  );
+  return rows.map(r => r.device_model.toLowerCase().trim());
+}
+
 export async function deletePart(id: number): Promise<void> {
   const db = await getDB();
+  await db.runAsync('DELETE FROM repair_parts WHERE part_id = ?', [id]);
+  await db.runAsync('DELETE FROM parts_purchases WHERE part_id = ?', [id]);
   await db.runAsync('DELETE FROM parts WHERE id = ?', [id]);
 }
 

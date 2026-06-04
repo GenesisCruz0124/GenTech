@@ -1,6 +1,6 @@
 import { getDB } from '../db/database';
 
-export type ReportPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type ReportPeriod = 'all_time' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface PeriodReport {
   period: string;
@@ -26,51 +26,65 @@ export interface TotalSummary {
 
 function periodFormat(period: ReportPeriod): string {
   switch (period) {
-    case 'daily':   return '%Y-%m-%d';
-    case 'weekly':  return '%Y-W%W';
-    case 'monthly': return '%Y-%m';
-    case 'yearly':  return '%Y';
+    case 'all_time': return '%Y';
+    case 'daily':    return '%Y-%m-%d';
+    case 'weekly':   return '%Y-W%W';
+    case 'monthly':  return '%Y-%m';
+    case 'yearly':   return '%Y';
   }
 }
 
-export async function getReportSummary(period: ReportPeriod): Promise<PeriodReport[]> {
+function currentPeriodFilter(period: ReportPeriod, dateCol: string, targetDate = 'now'): string {
+  if (period === 'all_time') return '1=1';
+  const d = targetDate === 'now' ? 'now' : `'${targetDate}'`;
+  switch (period) {
+    case 'daily':   return `strftime('%Y-%m-%d', ${dateCol}) = strftime('%Y-%m-%d', ${d})`;
+    case 'weekly':  return `strftime('%Y-%W', ${dateCol}) = strftime('%Y-%W', ${d})`;
+    case 'monthly': return `strftime('%Y-%m', ${dateCol}) = strftime('%Y-%m', ${d})`;
+    case 'yearly':  return `strftime('%Y', ${dateCol}) = strftime('%Y', ${d})`;
+  }
+}
+
+export async function getReportSummary(period: ReportPeriod, targetDate?: string): Promise<PeriodReport[]> {
   const db = await getDB();
   const fmt = periodFormat(period);
 
+  const td = targetDate ?? 'now';
+  const f1 = currentPeriodFilter(period, 'rp.payment_date', td);
+  const f2 = currentPeriodFilter(period, 'sold_at', td);
+  const f3 = currentPeriodFilter(period, 'purchased_at', td);
+  const f4 = currentPeriodFilter(period, 'purchased_at', td);
+  const f5 = currentPeriodFilter(period, 'payment_date', td);
+
   const [repairRows, saleRows, partsRows, purchaseRows, paidRows] = await Promise.all([
-    // Repair revenue: delivered repairs only
+    // Gross income = estimated_cost of delivered repairs
     db.getAllAsync<{ period: string; amount: number }>(
-      `SELECT strftime('${fmt}', created_at) as period,
-              SUM(COALESCE(final_cost, estimated_cost)) as amount
-       FROM repairs WHERE status = 'delivered'
+      `SELECT strftime('${fmt}', created_at) as period, SUM(estimated_cost) as amount
+       FROM repairs
+       WHERE status = 'delivered' AND ${currentPeriodFilter(period, 'created_at', td)}
        GROUP BY period ORDER BY period DESC`
     ),
-    // Device sale revenue
     db.getAllAsync<{ period: string; amount: number }>(
-      `SELECT strftime('${fmt}', sold_at) as period,
-              SUM(sale_price) as amount
-       FROM device_sales
+      `SELECT strftime('${fmt}', sold_at) as period, SUM(sale_price) as amount
+       FROM device_sales WHERE ${f2}
        GROUP BY period ORDER BY period DESC`
     ),
-    // Parts expense — what was actually paid to purchase inventory
     db.getAllAsync<{ period: string; amount: number }>(
-      `SELECT strftime('${fmt}', purchased_at) as period,
-              SUM(quantity * cost_price) as amount
-       FROM parts_purchases
+      `SELECT strftime('${fmt}', purchased_at) as period, SUM(quantity * cost_price) as amount
+       FROM parts_purchases WHERE ${f3}
        GROUP BY period ORDER BY period DESC`
     ),
-    // Device purchase expense
     db.getAllAsync<{ period: string; amount: number }>(
-      `SELECT strftime('${fmt}', purchased_at) as period,
-              SUM(purchase_price) as amount
-       FROM device_purchases
+      `SELECT strftime('${fmt}', purchased_at) as period, SUM(purchase_price) as amount
+       FROM device_purchases WHERE ${f4}
        GROUP BY period ORDER BY period DESC`
     ),
-    // Total paid collected (from repair_payments)
+    // Total paid = payments on delivered repairs only
     db.getAllAsync<{ period: string; amount: number }>(
-      `SELECT strftime('${fmt}', payment_date) as period,
-              SUM(amount) as amount
-       FROM repair_payments
+      `SELECT strftime('${fmt}', rp.payment_date) as period, SUM(rp.amount) as amount
+       FROM repair_payments rp
+       JOIN repairs r ON r.id = rp.repair_id
+       WHERE r.status = 'delivered' AND ${f5}
        GROUP BY period ORDER BY period DESC`
     ),
   ]);
@@ -121,20 +135,23 @@ export interface IssueCount {
   count: number;
 }
 
-export async function getRepairsByIssue(period: ReportPeriod): Promise<IssueCount[]> {
-  const db = await getDB();
-  const fmt = periodFormat(period);
+export interface BrandCount {
+  brand: string;
+  count: number;
+}
 
-  // Get all repairs with their issue_desc and date for the current period grouping
-  const rows = await db.getAllAsync<{ issue_desc: string; period: string }>(
-    `SELECT issue_desc, strftime('${fmt}', created_at) as period
-     FROM repairs
+export async function getRepairsByIssue(period: ReportPeriod, targetDate?: string): Promise<IssueCount[]> {
+  const db = await getDB();
+  const filter = currentPeriodFilter(period, 'created_at', targetDate ?? 'now');
+
+  const rows = await db.getAllAsync<{ issue_desc: string }>(
+    `SELECT issue_desc FROM repairs
      WHERE issue_desc IS NOT NULL AND issue_desc != ''
-       AND status != 'not_repaired'
+       AND status = 'delivered'
+       AND ${filter}
      ORDER BY created_at DESC`
   );
 
-  // Split comma-separated issues and count each
   const counts = new Map<string, number>();
   for (const row of rows) {
     const issues = row.issue_desc.split(',').map(s => s.trim()).filter(Boolean);
@@ -148,18 +165,57 @@ export async function getRepairsByIssue(period: ReportPeriod): Promise<IssueCoun
     .sort((a, b) => b.count - a.count);
 }
 
-export async function getTotalSummary(period: ReportPeriod): Promise<TotalSummary> {
+export interface CategoryStockValue {
+  category: string;
+  total_value: number;
+  total_qty: number;
+}
+
+export async function getStockValueByCategory(): Promise<CategoryStockValue[]> {
   const db = await getDB();
-  const rows = await getReportSummary(period);
+  return db.getAllAsync<CategoryStockValue>(
+    `SELECT COALESCE(c.name, 'Uncategorized') as category,
+            SUM(p.quantity * p.cost_price) as total_value,
+            SUM(p.quantity) as total_qty
+     FROM parts p
+     LEFT JOIN categories c ON c.id = p.category_id
+     GROUP BY COALESCE(c.name, 'Uncategorized')
+     ORDER BY total_value DESC`
+  );
+}
+
+export async function getRepairsByBrand(period: ReportPeriod, targetDate?: string): Promise<BrandCount[]> {
+  const db = await getDB();
+  const filter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now');
+
+  const rows = await db.getAllAsync<{ brand: string; count: number }>(
+    `SELECT COALESCE(db.name, 'Unknown Brand') as brand, COUNT(*) as count
+     FROM repairs r
+     LEFT JOIN device_models dm ON LOWER(TRIM(dm.name)) = LOWER(TRIM(r.device_model))
+     LEFT JOIN device_brands db ON db.id = dm.brand_id
+     WHERE r.status = 'delivered'
+       AND ${filter}
+     GROUP BY COALESCE(db.name, 'Unknown Brand')
+     ORDER BY count DESC`
+  );
+
+  return rows;
+}
+
+export async function getTotalSummary(period: ReportPeriod, targetDate?: string): Promise<TotalSummary> {
+  const db = await getDB();
+  const rows = await getReportSummary(period, targetDate);
   const r2 = (n: number) => Math.round(n * 100) / 100;
 
-  // Unpaid repairs: delivered or in-progress but is_paid = 0
+  // Unpaid repairs filtered by current period
+  const periodFilter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now');
   const unpaidRow = await db.getFirstAsync<{ count: number; amount: number }>(
     `SELECT COUNT(*) as count,
             COALESCE(SUM(COALESCE(final_cost, estimated_cost)), 0) -
             COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0) as amount
      FROM repairs r
-     WHERE r.is_paid = 0 AND r.status != 'not_repaired'`
+     WHERE r.is_paid = 0 AND r.status = 'delivered'
+       AND ${periodFilter}`
   );
 
   const base = rows.reduce<TotalSummary>(
@@ -178,4 +234,50 @@ export async function getTotalSummary(period: ReportPeriod): Promise<TotalSummar
   base.unpaid_count  = unpaidRow?.count ?? 0;
   base.unpaid_amount = r2(unpaidRow?.amount ?? 0);
   return base;
+}
+
+export interface DailyRepairStat {
+  date: string;       // YYYY-MM-DD
+  recorded: number;
+  delivered: number;
+}
+
+export async function getDailyRepairStats(): Promise<DailyRepairStat[]> {
+  const db = await getDB();
+
+  // Build 7-day window (today - 6 days to today)
+  const days: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  const from = days[0];
+
+  const [recRows, delRows] = await Promise.all([
+    db.getAllAsync<{ date: string; count: number }>(
+      `SELECT strftime('%Y-%m-%d', created_at) as date, COUNT(*) as count
+       FROM repairs
+       WHERE strftime('%Y-%m-%d', created_at) >= ?
+       GROUP BY date`,
+      [from]
+    ),
+    db.getAllAsync<{ date: string; count: number }>(
+      `SELECT strftime('%Y-%m-%d', delivered_at) as date, COUNT(*) as count
+       FROM repairs
+       WHERE status = 'delivered' AND delivered_at IS NOT NULL
+         AND strftime('%Y-%m-%d', delivered_at) >= ?
+       GROUP BY date`,
+      [from]
+    ),
+  ]);
+
+  const recMap = Object.fromEntries(recRows.map(r => [r.date, r.count]));
+  const delMap = Object.fromEntries(delRows.map(r => [r.date, r.count]));
+
+  return days.map(date => ({
+    date,
+    recorded: recMap[date] ?? 0,
+    delivered: delMap[date] ?? 0,
+  }));
 }

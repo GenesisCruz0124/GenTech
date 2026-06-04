@@ -9,6 +9,8 @@ interface DatePickerFieldProps {
   label: string;
   value: string; // YYYY-MM-DD
   onChange: (date: string) => void;
+  minDate?: Date;
+  maxDate?: Date;
 }
 
 function toDate(str: string): Date {
@@ -23,10 +25,10 @@ function toStr(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export default function DatePickerField({ label, value, onChange }: DatePickerFieldProps) {
+export default function DatePickerField({ label, value, onChange, minDate, maxDate }: DatePickerFieldProps) {
   const [show, setShow] = useState(false);
 
-  const date = value ? toDate(value) : new Date();
+  const date = value ? toDate(value) : (minDate ?? new Date());
 
   const display = value
     ? date.toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
@@ -49,7 +51,8 @@ export default function DatePickerField({ label, value, onChange }: DatePickerFi
             setShow(false);
             if (selected) onChange(toStr(selected));
           }}
-          maximumDate={new Date()}
+          minimumDate={minDate}
+          maximumDate={maxDate}
         />
       )}
     </View>
