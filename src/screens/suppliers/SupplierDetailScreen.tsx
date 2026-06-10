@@ -28,6 +28,7 @@ export default function SupplierDetailScreen({ route, navigation }: Props) {
   const [editEmail, setEditEmail] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editFacebook, setEditFacebook] = useState('');
+  const [editShopeeUrl, setEditShopeeUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
 
@@ -114,6 +115,12 @@ export default function SupplierDetailScreen({ route, navigation }: Props) {
       navigation.setOptions({
         headerRight: () => (
           <View style={{ flexDirection: 'row' }}>
+            {supplier.shopee_url ? (
+              <IconButton icon="shopping" iconColor="#fff"
+                onPress={() => Linking.openURL(
+                  supplier.shopee_url!.startsWith('http') ? supplier.shopee_url! : `https://${supplier.shopee_url}`
+                )} />
+            ) : null}
             {supplier.facebook ? (
               <IconButton
                 icon="facebook-messenger"
@@ -142,6 +149,7 @@ export default function SupplierDetailScreen({ route, navigation }: Props) {
     setEditEmail(supplier.email ?? '');
     setEditAddress(supplier.address ?? '');
     setEditFacebook(supplier.facebook ?? '');
+    setEditShopeeUrl(supplier.shopee_url ?? '');
     setEditVisible(true);
   };
 
@@ -153,6 +161,7 @@ export default function SupplierDetailScreen({ route, navigation }: Props) {
       email: editEmail.trim() || undefined,
       address: editAddress.trim() || undefined,
       facebook: editFacebook.trim() || undefined,
+      shopee_url: editShopeeUrl.trim() || undefined,
     });
     setSaving(false);
     setEditVisible(false);
@@ -198,6 +207,7 @@ export default function SupplierDetailScreen({ route, navigation }: Props) {
                 {supplier.email ? <Text style={styles.meta}>{supplier.email}</Text> : null}
                 {supplier.address ? <Text style={styles.meta}>{supplier.address}</Text> : null}
                 {supplier.facebook ? <Text style={styles.meta}>Facebook: {supplier.facebook}</Text> : null}
+                {supplier.shopee_url ? <Text style={[styles.meta, { color: '#EE4D2D' }]}>🛒 Shopee Store</Text> : null}
               </View>
             </View>
 
@@ -247,6 +257,7 @@ export default function SupplierDetailScreen({ route, navigation }: Props) {
             <TextInput label="Email (optional)" value={editEmail} onChangeText={setEditEmail} mode="outlined" style={styles.input} keyboardType="email-address" autoCapitalize="none" />
             <TextInput label="Address (optional)" value={editAddress} onChangeText={setEditAddress} mode="outlined" style={styles.input} />
             <TextInput label="Facebook (username or URL)" value={editFacebook} onChangeText={setEditFacebook} mode="outlined" style={styles.input} autoCapitalize="none" />
+            <TextInput label="Shopee Store URL (optional)" value={editShopeeUrl} onChangeText={setEditShopeeUrl} mode="outlined" style={styles.input} autoCapitalize="none" placeholder="https://shopee.ph/yourstore" />
             <View style={styles.modalActions}>
               <Button mode="outlined" onPress={() => setEditVisible(false)} style={styles.btnHalf}>Cancel</Button>
               <Button mode="contained" onPress={handleSave} loading={saving} disabled={!editName.trim() || saving} style={styles.btnHalf}>Save</Button>

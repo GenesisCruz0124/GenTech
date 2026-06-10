@@ -53,6 +53,11 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
   const [editDateValue, setEditDateValue] = useState('');
   const [dateSaving, setDateSaving] = useState(false);
 
+  // Delivery date editing
+  const [editingDelivery, setEditingDelivery] = useState(false);
+  const [editDeliveryValue, setEditDeliveryValue] = useState('');
+  const [deliverySaving, setDeliverySaving] = useState(false);
+
   // Notes editing
   const [editingNotes, setEditingNotes] = useState(false);
   const [editNotesValue, setEditNotesValue] = useState('');
@@ -762,6 +767,43 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
             </Button>
           )}
         </View>
+
+        {/* ── DELIVERY DATE ─────────────────────────────── */}
+        {repair.status === 'delivered' && (
+          <View style={styles.card}>
+            <View style={[styles.fieldRow, { alignItems: 'center' }]}>
+              <View style={styles.fieldIconWrap}>
+                <MaterialCommunityIcons name="package-check" size={18} color={Colors.success} />
+              </View>
+              <View style={styles.fieldBody}>
+                <Text style={styles.fieldLabel}>Date Delivered</Text>
+                {editingDelivery ? (
+                  <View style={{ marginTop: 4 }}>
+                    <DatePickerField label="" value={editDeliveryValue} onChange={setEditDeliveryValue} maxDate={new Date()} />
+                    <Button mode="contained" compact loading={deliverySaving} style={styles.inlineSaveBtn}
+                      onPress={async () => {
+                        setDeliverySaving(true);
+                        await editRepair(repairId, { delivered_at: editDeliveryValue } as any);
+                        setDeliverySaving(false);
+                        setEditingDelivery(false);
+                        load();
+                      }}>Save</Button>
+                  </View>
+                ) : (
+                  <Text style={styles.fieldValue}>
+                    {repair.delivered_at
+                      ? new Date(repair.delivered_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })
+                      : '—'}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity style={styles.editIconBtn}
+                onPress={() => { setEditDeliveryValue(repair.delivered_at?.split('T')[0] ?? ''); setEditingDelivery(v => !v); }}>
+                <MaterialCommunityIcons name={editingDelivery ? 'close' : 'pencil-outline'} size={15} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* ── PAYMENT CARD ───────────────────────────────── */}
         {repair.status === 'delivered' && (() => {

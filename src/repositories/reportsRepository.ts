@@ -1,6 +1,6 @@
 import { getDB } from '../db/database';
 
-export type ReportPeriod = 'all_time' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type ReportPeriod = 'all_time' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 export interface PeriodReport {
   period: string;
@@ -31,11 +31,17 @@ function periodFormat(period: ReportPeriod): string {
     case 'weekly':   return '%Y-W%W';
     case 'monthly':  return '%Y-%m';
     case 'yearly':   return '%Y';
+    case 'custom':   return '%Y-%m-%d';
   }
 }
 
-function currentPeriodFilter(period: ReportPeriod, dateCol: string, targetDate = 'now'): string {
+function currentPeriodFilter(period: ReportPeriod, dateCol: string, targetDate = 'now', dateTo?: string): string {
   if (period === 'all_time') return '1=1';
+  if (period === 'custom') {
+    const from = targetDate === 'now' ? new Date().toISOString().split('T')[0] : targetDate;
+    const to = dateTo ?? from;
+    return `strftime('%Y-%m-%d', ${dateCol}) BETWEEN '${from}' AND '${to}'`;
+  }
   const d = targetDate === 'now' ? 'now' : `'${targetDate}'`;
   switch (period) {
     case 'daily':   return `strftime('%Y-%m-%d', ${dateCol}) = strftime('%Y-%m-%d', ${d})`;
@@ -45,23 +51,23 @@ function currentPeriodFilter(period: ReportPeriod, dateCol: string, targetDate =
   }
 }
 
-export async function getReportSummary(period: ReportPeriod, targetDate?: string): Promise<PeriodReport[]> {
+export async function getReportSummary(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<PeriodReport[]> {
   const db = await getDB();
   const fmt = periodFormat(period);
 
   const td = targetDate ?? 'now';
-  const f1 = currentPeriodFilter(period, 'rp.payment_date', td);
-  const f2 = currentPeriodFilter(period, 'sold_at', td);
-  const f3 = currentPeriodFilter(period, 'purchased_at', td);
-  const f4 = currentPeriodFilter(period, 'purchased_at', td);
-  const f5 = currentPeriodFilter(period, 'payment_date', td);
+  const f1 = currentPeriodFilter(period, 'rp.payment_date', td, dateTo);
+  const f2 = currentPeriodFilter(period, 'sold_at', td, dateTo);
+  const f3 = currentPeriodFilter(period, 'purchased_at', td, dateTo);
+  const f4 = currentPeriodFilter(period, 'purchased_at', td, dateTo);
+  const f5 = currentPeriodFilter(period, 'payment_date', td, dateTo);
 
   const [repairRows, saleRows, partsRows, purchaseRows, paidRows] = await Promise.all([
     // Gross income = estimated_cost of delivered repairs
     db.getAllAsync<{ period: string; amount: number }>(
       `SELECT strftime('${fmt}', created_at) as period, SUM(estimated_cost) as amount
        FROM repairs
-       WHERE status = 'delivered' AND ${currentPeriodFilter(period, 'created_at', td)}
+       WHERE status = 'delivered' AND ${currentPeriodFilter(period, 'created_at', td, dateTo)}
        GROUP BY period ORDER BY period DESC`
     ),
     db.getAllAsync<{ period: string; amount: number }>(
@@ -202,13 +208,13 @@ export async function getRepairsByBrand(period: ReportPeriod, targetDate?: strin
   return rows;
 }
 
-export async function getTotalSummary(period: ReportPeriod, targetDate?: string): Promise<TotalSummary> {
+export async function getTotalSummary(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<TotalSummary> {
   const db = await getDB();
-  const rows = await getReportSummary(period, targetDate);
+  const rows = await getReportSummary(period, targetDate, dateTo);
   const r2 = (n: number) => Math.round(n * 100) / 100;
 
   // Unpaid repairs filtered by current period
-  const periodFilter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now');
+  const periodFilter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now', dateTo);
   const unpaidRow = await db.getFirstAsync<{ count: number; amount: number }>(
     `SELECT COUNT(*) as count,
             COALESCE(SUM(COALESCE(final_cost, estimated_cost)), 0) -

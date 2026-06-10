@@ -34,7 +34,9 @@ export interface CreateRepairInput {
   issue_desc: string;
   estimated_cost: number;
   notes?: string;
-  created_at?: string; // override record date (YYYY-MM-DD or full ISO)
+  created_at?: string;
+  has_warranty?: number;
+  warranty_until?: string;
 }
 
 export interface RepairFilter {
@@ -53,8 +55,8 @@ export async function createRepair(input: CreateRepairInput): Promise<number> {
     ? (input.created_at.length === 10 ? input.created_at + 'T00:00:00.000Z' : input.created_at)
     : new Date().toISOString();
   const result = await db.runAsync(
-    `INSERT INTO repairs (customer_id, assigned_staff_id, device_model, issue_desc, estimated_cost, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO repairs (customer_id, assigned_staff_id, device_model, issue_desc, estimated_cost, notes, has_warranty, warranty_until, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.customer_id,
       input.assigned_staff_id ?? null,
@@ -62,6 +64,8 @@ export async function createRepair(input: CreateRepairInput): Promise<number> {
       input.issue_desc,
       input.estimated_cost,
       input.notes ?? null,
+      input.has_warranty ?? 0,
+      input.warranty_until ?? null,
       createdAt,
       createdAt,
     ]
@@ -173,7 +177,7 @@ export async function deliverRepair(id: number, isPaid: boolean): Promise<void> 
 export async function updateRepair(id: number, data: Partial<CreateRepairInput> & { final_cost?: number; image_uri?: string | null; customer_id?: number }): Promise<void> {
   const db = await getDB();
   const now = new Date().toISOString();
-  const allowed = ['device_model', 'issue_desc', 'estimated_cost', 'final_cost', 'notes', 'assigned_staff_id', 'image_uri', 'customer_id', 'has_warranty', 'warranty_until', 'created_at'];
+  const allowed = ['device_model', 'issue_desc', 'estimated_cost', 'final_cost', 'notes', 'assigned_staff_id', 'image_uri', 'customer_id', 'has_warranty', 'warranty_until', 'created_at', 'delivered_at'];
   const entries = Object.entries(data).filter(([k]) => allowed.includes(k));
   if (!entries.length) return;
   const fields = entries.map(([k]) => `${k} = ?`).join(', ');
@@ -186,22 +190,26 @@ export async function deleteRepair(id: number): Promise<void> {
   await db.runAsync('DELETE FROM repairs WHERE id = ?', [id]);
 }
 
-export async function getNotPaidCount(dateFrom?: string): Promise<number> {
+function dateRangeClause(dateFrom?: string, dateTo?: string): string {
+  if (dateFrom && dateTo) return `strftime('%Y-%m-%d', created_at) BETWEEN '${dateFrom}' AND '${dateTo}'`;
+  if (dateFrom) return `strftime('%Y-%m-%d', created_at) >= '${dateFrom}'`;
+  return '';
+}
+
+export async function getNotPaidCount(dateFrom?: string, dateTo?: string): Promise<number> {
   const db = await getDB();
-  const where = dateFrom
-    ? `WHERE is_paid = 0 AND status = 'delivered' AND strftime('%Y-%m-%d', created_at) >= '${dateFrom}'`
-    : `WHERE is_paid = 0 AND status = 'delivered'`;
+  const range = dateRangeClause(dateFrom, dateTo);
+  const where = `WHERE is_paid = 0 AND status = 'delivered'${range ? ` AND ${range}` : ''}`;
   const row = await db.getFirstAsync<{ count: number }>(
     `SELECT COUNT(*) as count FROM repairs ${where}`
   );
   return row?.count ?? 0;
 }
 
-export async function getStatusCounts(dateFrom?: string): Promise<Record<RepairStatus, number>> {
+export async function getStatusCounts(dateFrom?: string, dateTo?: string): Promise<Record<RepairStatus, number>> {
   const db = await getDB();
-  const where = dateFrom
-    ? `WHERE strftime('%Y-%m-%d', created_at) >= '${dateFrom}'`
-    : '';
+  const range = dateRangeClause(dateFrom, dateTo);
+  const where = range ? `WHERE ${range}` : '';
   const rows = await db.getAllAsync<{ status: string; count: number }>(
     `SELECT status, COUNT(*) as count FROM repairs ${where} GROUP BY status`
   );

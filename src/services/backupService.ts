@@ -205,7 +205,7 @@ export async function listBackups(): Promise<{ name: string; uri: string; size: 
       .filter(f => f.endsWith('.zip') || f.endsWith('.db'))
       .map(async name => {
         const uri = BACKUP_DIR + name;
-        const info = await FileSystem.getInfoAsync(uri, { size: true });
+        const info = await FileSystem.getInfoAsync(uri);
         const sizeKB = Math.round(((info as any).size ?? 0) / 1024);
         const date = name
           .replace('repair_tracker_backup_', '')

@@ -14,6 +14,7 @@ import {
   shareBackup,
   deleteBackup,
 } from '../../services/backupService';
+import { useLicense } from '../../hooks/useLicense';
 import { resetDB, getDB } from '../../db/database';
 import { Colors } from '../../constants/colors';
 
@@ -307,6 +308,8 @@ export default function BackupScreen() {
       return `${m}/${d}/${y} ${hh}:${mm}`;
     } catch { return raw; }
   }
+
+  const license = useLicense();
 
   return (
     <View style={styles.container}>

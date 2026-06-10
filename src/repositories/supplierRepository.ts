@@ -7,6 +7,7 @@ export interface Supplier {
   address: string | null;
   email: string | null;
   facebook: string | null;
+  shopee_url: string | null;
   photo_uri: string | null;
   notes: string | null;
   created_at: string;
@@ -17,7 +18,7 @@ export interface Supplier {
 export async function getAllSuppliers(): Promise<Supplier[]> {
   const db = await getDB();
   const rows = await db.getAllAsync<any>(
-    `SELECT id, name, phone, address, notes, created_at FROM suppliers ORDER BY name ASC`
+    `SELECT id, name, phone, address, notes, shopee_url, created_at FROM suppliers ORDER BY name ASC`
   );
   const result: Supplier[] = await Promise.all(rows.map(async (s: any) => {
     // Safely fetch columns added by later migrations
@@ -49,7 +50,7 @@ export async function getAllSuppliers(): Promise<Supplier[]> {
   return result;
 }
 
-export async function createSupplier(input: { name: string; phone?: string; address?: string; email?: string; facebook?: string; photo_uri?: string | null; notes?: string }): Promise<number> {
+export async function createSupplier(input: { name: string; phone?: string; address?: string; email?: string; facebook?: string; shopee_url?: string; photo_uri?: string | null; notes?: string }): Promise<number> {
   const db = await getDB();
   const result = await db.runAsync(
     'INSERT INTO suppliers (name, phone, address, notes) VALUES (?, ?, ?, ?)',
@@ -57,9 +58,10 @@ export async function createSupplier(input: { name: string; phone?: string; addr
   );
   const id = result.lastInsertRowId;
   const extras: [string, any][] = [
-    ['facebook', input.facebook || null],
-    ['email', input.email || null],
-    ['photo_uri', input.photo_uri ?? null],
+    ['facebook',   input.facebook   || null],
+    ['email',      input.email      || null],
+    ['shopee_url', input.shopee_url || null],
+    ['photo_uri',  input.photo_uri  ?? null],
   ];
   for (const [col, val] of extras) {
     try { await db.runAsync(`UPDATE suppliers SET ${col} = ? WHERE id = ?`, [val, id]); } catch {}
@@ -67,16 +69,17 @@ export async function createSupplier(input: { name: string; phone?: string; addr
   return id;
 }
 
-export async function updateSupplier(id: number, input: { name: string; phone?: string; address?: string; email?: string; facebook?: string; photo_uri?: string | null; notes?: string }): Promise<void> {
+export async function updateSupplier(id: number, input: { name: string; phone?: string; address?: string; email?: string; facebook?: string; shopee_url?: string; photo_uri?: string | null; notes?: string }): Promise<void> {
   const db = await getDB();
   await db.runAsync(
     'UPDATE suppliers SET name = ?, phone = ?, address = ?, notes = ? WHERE id = ?',
     [input.name.trim(), input.phone ?? null, input.address ?? null, input.notes ?? null, id]
   );
   const extras: [string, any][] = [
-    ['facebook', input.facebook !== undefined ? (input.facebook || null) : undefined],
-    ['email', input.email !== undefined ? (input.email || null) : undefined],
-    ['photo_uri', 'photo_uri' in input ? (input.photo_uri ?? null) : undefined],
+    ['facebook',   input.facebook   !== undefined ? (input.facebook   || null) : undefined],
+    ['email',      input.email      !== undefined ? (input.email      || null) : undefined],
+    ['shopee_url', input.shopee_url !== undefined ? (input.shopee_url || null) : undefined],
+    ['photo_uri',  'photo_uri' in input ? (input.photo_uri ?? null) : undefined],
   ];
   for (const [col, val] of extras) {
     if (val !== undefined) {

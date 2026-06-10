@@ -194,7 +194,7 @@ export async function getModelsWithActiveRepairs(): Promise<string[]> {
   const db = await getDB();
   const rows = await db.getAllAsync<{ device_model: string }>(
     `SELECT DISTINCT device_model FROM repairs
-     WHERE status NOT IN ('delivered', 'not_repaired') AND device_model IS NOT NULL AND device_model != ''`
+     WHERE status IN ('pending', 'in_progress') AND device_model IS NOT NULL AND device_model != ''`
   );
   return rows.map(r => r.device_model.toLowerCase().trim());
 }

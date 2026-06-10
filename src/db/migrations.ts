@@ -1280,6 +1280,19 @@ const MIGRATIONS: Migration[] = [
     ],
   },
   {
+    version: 36,
+    statements: [
+      // Safety: ensure year_released exists even if v29 ran after v34 due to array ordering
+      `ALTER TABLE device_models ADD COLUMN year_released INTEGER`,
+    ],
+  },
+  {
+    version: 35,
+    statements: [
+      `ALTER TABLE suppliers ADD COLUMN shopee_url TEXT`,
+    ],
+  },
+  {
     version: 32,
     statements: [
       `ALTER TABLE suppliers ADD COLUMN email TEXT`,
@@ -1333,27 +1346,36 @@ export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   );
 
   for (const migration of MIGRATIONS) {
-    const existing = await db.getFirstAsync<{ version: number }>(
-      'SELECT version FROM schema_migrations WHERE version = ?',
-      [migration.version]
-    );
-    if (!existing) {
-      await db.withTransactionAsync(async () => {
+    try {
+      const existing = await db.getFirstAsync<{ version: number }>(
+        'SELECT version FROM schema_migrations WHERE version = ?',
+        [migration.version]
+      );
+      if (!existing) {
+        let allOk = true;
         for (const sql of migration.statements) {
           try {
             await db.execAsync(sql);
           } catch (e: any) {
-            // Ignore "duplicate column name" — happens when a column was already
-            // added in a prior CREATE TABLE but an ALTER TABLE also tries to add it.
-            if (e?.message?.toLowerCase().includes('duplicate column')) continue;
-            throw e;
+            const msg = (e?.message ?? '').toLowerCase();
+            // Silently skip duplicate column / already exists errors
+            if (msg.includes('duplicate column') || msg.includes('already exists')) continue;
+            console.warn(`Migration v${migration.version} statement failed:`, e?.message);
+            allOk = false;
+            // Don't break — try remaining statements (e.g., seed data inserts are independent)
           }
         }
-        await db.runAsync(
-          'INSERT INTO schema_migrations (version) VALUES (?)',
-          [migration.version]
-        );
-      });
+        // Only mark as applied if core statements succeeded
+        if (allOk) {
+          await db.runAsync(
+            'INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)',
+            [migration.version]
+          );
+        }
+      }
+    } catch (e: any) {
+      // A failing migration must never prevent the app from loading
+      console.warn(`Migration v${migration.version} skipped:`, e?.message);
     }
   }
 }

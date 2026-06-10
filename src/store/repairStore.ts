@@ -34,7 +34,7 @@ interface RepairStore {
   error: string | null;
 
   fetchRepairs: (filter?: RepairFilter) => Promise<void>;
-  fetchStatusCounts: (dateFrom?: string) => Promise<void>;
+  fetchStatusCounts: (dateFrom?: string, dateTo?: string) => Promise<void>;
   addRepair: (data: CreateRepairInput) => Promise<number>;
   advanceStatus: (id: number, status: RepairStatus) => Promise<void>;
   setNotRepaired: (id: number) => Promise<void>;
@@ -62,8 +62,8 @@ export const useRepairStore = create<RepairStore>((set, get) => ({
     }
   },
 
-  fetchStatusCounts: async (dateFrom?: string) => {
-    const [counts, notPaidCount] = await Promise.all([getStatusCounts(dateFrom), getNotPaidCount(dateFrom)]);
+  fetchStatusCounts: async (dateFrom?: string, dateTo?: string) => {
+    const [counts, notPaidCount] = await Promise.all([getStatusCounts(dateFrom, dateTo), getNotPaidCount(dateFrom, dateTo)]);
     set({ statusCounts: counts, notPaidCount });
   },
 

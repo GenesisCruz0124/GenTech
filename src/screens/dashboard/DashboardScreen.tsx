@@ -18,16 +18,35 @@ import {
 import { getSetting } from '../../repositories/settingsRepository';
 import { Colors } from '../../constants/colors';
 import { formatCurrency } from '../../utils/formatters';
+import DatePickerField from '../../components/common/DatePickerField';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const PERIODS: { value: ReportPeriod; label: string; icon: string }[] = [
   { value: 'all_time', label: 'All Time', icon: 'infinity' },
+  { value: 'weekly',   label: 'Weekly',   icon: 'calendar-week' },
   { value: 'monthly',  label: 'Monthly',  icon: 'calendar-month' },
   { value: 'yearly',   label: 'Yearly',   icon: 'calendar' },
+  { value: 'custom',   label: 'Custom',   icon: 'calendar-range' },
 ];
 
 function toIso(d: Date): string { return d.toISOString().split('T')[0]; }
+
+function fromIso(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+// Monday–Sunday range containing the given date
+function getWeekRange(date: Date): { start: Date; end: Date } {
+  const day = date.getDay(); // 0 = Sunday
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+  const start = new Date(date);
+  start.setDate(date.getDate() + diffToMonday);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return { start, end };
+}
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
@@ -38,6 +57,8 @@ export default function DashboardScreen() {
 
   const [period, setPeriod] = useState<ReportPeriod>('all_time');
   const [targetDate, setTargetDate] = useState(new Date());
+  const [customFrom, setCustomFrom] = useState(() => toIso(getWeekRange(new Date()).start));
+  const [customTo, setCustomTo] = useState(() => toIso(new Date()));
   const [summary, setSummary] = useState<TotalSummary>({
     gross_income: 0, net_income: 0, total_revenue: 0,
     total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0,
@@ -64,6 +85,7 @@ export default function DashboardScreen() {
       const d = new Date(prev);
       if (period === 'monthly') d.setMonth(d.getMonth() + dir);
       else if (period === 'yearly') d.setFullYear(d.getFullYear() + dir);
+      else if (period === 'weekly') d.setDate(d.getDate() + dir * 7);
       setGlobalTargetDate(d);
       return d;
     });
@@ -72,24 +94,49 @@ export default function DashboardScreen() {
   const navLabel = () => {
     if (period === 'monthly') return targetDate.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
     if (period === 'yearly') return String(targetDate.getFullYear());
+    if (period === 'weekly') {
+      const { start, end } = getWeekRange(targetDate);
+      const fmt = (d: Date) => d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+      return `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}`;
+    }
     return '';
   };
 
   const load = useCallback(async () => {
     setLoading(true);
-    const td = period === 'all_time' ? undefined : toIso(targetDate);
-    const [s, daily] = await Promise.all([
-      getTotalSummary(period, td),
-      getDailyRepairStats(),
-      fetchStatusCounts(td),
-    ]);
-    setSummary(s);
-    setDailyStats(daily);
-    getSetting('shop_name').then(name => {
-      navigation.setOptions({ title: name || 'GenTech Repairs Monitoring' } as any);
-    });
-    setLoading(false);
-  }, [period, targetDate]);
+    try {
+      let dateFrom: string | undefined;
+      let dateTo: string | undefined;
+      if (period === 'all_time') {
+        dateFrom = undefined;
+        dateTo = undefined;
+      } else if (period === 'custom') {
+        dateFrom = customFrom;
+        dateTo = customTo;
+      } else if (period === 'weekly') {
+        const { start, end } = getWeekRange(targetDate);
+        dateFrom = toIso(start);
+        dateTo = toIso(end);
+      } else {
+        dateFrom = toIso(targetDate);
+      }
+
+      const [s, daily] = await Promise.all([
+        getTotalSummary(period, dateFrom, dateTo),
+        getDailyRepairStats(),
+        fetchStatusCounts(dateFrom, dateTo),
+      ]);
+      setSummary(s);
+      setDailyStats(daily);
+      getSetting('shop_name').then(name => {
+        navigation.setOptions({ title: name || 'GenTech Repairs Monitoring' } as any);
+      }).catch(() => {});
+    } catch (e) {
+      console.warn('Dashboard load error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [period, targetDate, customFrom, customTo]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -132,11 +179,32 @@ export default function DashboardScreen() {
               );
             })}
           </ScrollView>
-          {(period === 'monthly' || period === 'yearly') && (
+          {(period === 'monthly' || period === 'yearly' || period === 'weekly') && (
             <View style={styles.navRow}>
               <IconButton icon="chevron-left" size={20} iconColor={Colors.primary} onPress={() => navigateDate(-1)} />
               <Text style={styles.navLabel}>{navLabel()}</Text>
               <IconButton icon="chevron-right" size={20} iconColor={Colors.primary} onPress={() => navigateDate(1)} />
+            </View>
+          )}
+          {period === 'custom' && (
+            <View style={styles.customRow}>
+              <View style={styles.customField}>
+                <DatePickerField
+                  label="From"
+                  value={customFrom}
+                  onChange={setCustomFrom}
+                  maxDate={fromIso(customTo)}
+                />
+              </View>
+              <View style={styles.customField}>
+                <DatePickerField
+                  label="To"
+                  value={customTo}
+                  onChange={setCustomTo}
+                  minDate={fromIso(customFrom)}
+                  maxDate={new Date()}
+                />
+              </View>
             </View>
           )}
         </View>
@@ -271,6 +339,8 @@ const styles = StyleSheet.create({
   periodChipLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: Colors.border },
   navLabel: { fontSize: 14, fontWeight: '700', color: Colors.text, minWidth: 160, textAlign: 'center' },
+  customRow: { flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+  customField: { flex: 1 },
 
   // ── Net income compact row
   netIncomeRow: {

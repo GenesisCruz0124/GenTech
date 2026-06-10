@@ -141,8 +141,14 @@ export default function RepairsListScreen() {
   // Apply filter from dashboard navigation — update chips AND immediately fetch
   useEffect(() => {
     const incoming = route.params?.initialFilter as FilterValue | undefined;
-    if (!incoming) return;
+    if (incoming === undefined) return;
     skipNextFocusLoad.current = true;
+    if (incoming === '') {
+      // "Total Repairs" tile — clear any active filter and show everything
+      setSelectedFilters(new Set());
+      fetchRepairs({});
+      return;
+    }
     setSelectedFilters(new Set([incoming as FilterValue]));
     if (incoming === 'not_paid') {
       fetchRepairs({ not_paid: true });
@@ -216,7 +222,7 @@ export default function RepairsListScreen() {
           <RepairCard
             repair={item}
             onPress={() => navigation.navigate('RepairDetail', { repairId: item.id })}
-            onAdvanceStatus={async (id, next) => { await advanceStatus(id, next); }}
+            onAdvanceStatus={async (id, next) => { await advanceStatus(id, next); load(); }}
           />
         )}
         ListEmptyComponent={
@@ -236,7 +242,7 @@ export default function RepairsListScreen() {
             <EmptyState icon="wrench-outline" title="No repairs found" subtitle="Tap + to create a new repair" />
           )
         }
-        refreshing={isLoading}
+        refreshing={false}
         onRefresh={load}
         contentContainerStyle={repairs.length === 0 ? styles.emptyContainer : styles.list}
       />

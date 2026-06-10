@@ -27,6 +27,7 @@ import { useCustomerStore } from '../../store/customerStore';
 import { getAllIssues, Issue } from '../../repositories/issueRepository';
 import { Customer, searchCustomers } from '../../repositories/customerRepository';
 import { Part, getAllParts, autoCreatePartIfNotExists } from '../../repositories/partsRepository';
+import { getLicenseStatus, getTrialCounts, TRIAL_LIMITS } from '../../services/licenseService';
 import { addRepairPart } from '../../repositories/partsRepository';
 import { DeviceModel, searchDeviceModels, createDeviceModel } from '../../repositories/deviceModelRepository';
 import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
@@ -141,6 +142,8 @@ export default function NewRepairScreen({ navigation, route }: Props) {
   const { upsertByPhone } = useCustomerStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dateRecorded, setDateRecorded] = useState(new Date().toISOString().split('T')[0]);
+  const [hasWarranty, setHasWarranty] = useState(false);
+  const [warrantyUntil, setWarrantyUntil] = useState('');
 
   // Pre-populate from navigation params
   useEffect(() => {
@@ -246,6 +249,25 @@ export default function NewRepairScreen({ navigation, route }: Props) {
       Alert.alert('Issue required', 'Please select at least one issue.');
       return;
     }
+    // Trial limit check
+    const lic = await getLicenseStatus();
+    if (!lic.isPro) {
+      if (lic.isExpired) {
+        Alert.alert('Trial Expired', 'Your free trial has ended. Please activate a Pro license to create more repairs.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => navigation.navigate('License') },
+        ]);
+        return;
+      }
+      const counts = await getTrialCounts();
+      if (counts.repairs >= TRIAL_LIMITS.repairs) {
+        Alert.alert('Trial Limit Reached', `You can create up to ${TRIAL_LIMITS.repairs} repairs during the free trial. Upgrade to Pro for unlimited repairs.`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => navigation.navigate('License') },
+        ]);
+        return;
+      }
+    }
     setIsSubmitting(true);
     try {
       const customerId = await upsertByPhone({
@@ -264,6 +286,8 @@ export default function NewRepairScreen({ navigation, route }: Props) {
         estimated_cost: parseFloat(data.estimatedCost),
         notes: data.notes || undefined,
         created_at: dateRecorded,
+        has_warranty: hasWarranty ? 1 : 0,
+        warranty_until: hasWarranty && warrantyUntil ? warrantyUntil : undefined,
       });
       // Save photos
       for (const uri of photos) {
@@ -459,6 +483,42 @@ export default function NewRepairScreen({ navigation, route }: Props) {
             )} />
           </View>
 
+          <View style={styles.fieldDivider} />
+
+          {/* Warranty */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.success }]} />
+              <Text style={styles.fieldGroupLabel}>Warranty</Text>
+            </View>
+            <View style={styles.warrantyToggleRow}>
+              <TouchableOpacity
+                style={[styles.warrantyBtn, hasWarranty && styles.warrantyBtnActive]}
+                onPress={() => setHasWarranty(true)}
+                activeOpacity={0.8}>
+                <MaterialCommunityIcons name="shield-check-outline" size={15} color={hasWarranty ? '#fff' : Colors.textSecondary} />
+                <Text style={[styles.warrantyBtnLabel, hasWarranty && { color: '#fff' }]}>With Warranty</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.warrantyBtn, !hasWarranty && styles.warrantyBtnNone]}
+                onPress={() => { setHasWarranty(false); setWarrantyUntil(''); }}
+                activeOpacity={0.8}>
+                <MaterialCommunityIcons name="shield-off-outline" size={15} color={!hasWarranty ? '#fff' : Colors.textSecondary} />
+                <Text style={[styles.warrantyBtnLabel, !hasWarranty && { color: '#fff' }]}>No Warranty</Text>
+              </TouchableOpacity>
+            </View>
+            {hasWarranty && (
+              <View style={{ marginTop: 8 }}>
+                <DatePickerField
+                  label="Warranty Until"
+                  value={warrantyUntil}
+                  onChange={setWarrantyUntil}
+                  minDate={new Date()}
+                />
+              </View>
+            )}
+          </View>
+
         </View>
 
         {/* Photos */}
@@ -576,4 +636,9 @@ const styles = StyleSheet.create({
 
   button: { borderRadius: 14 },
   buttonContent: { paddingVertical: 10 },
+  warrantyToggleRow: { flexDirection: 'row', gap: 8 },
+  warrantyBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.background },
+  warrantyBtnActive: { backgroundColor: Colors.success, borderColor: Colors.success },
+  warrantyBtnNone: { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary },
+  warrantyBtnLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
 });

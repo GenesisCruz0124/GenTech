@@ -5,6 +5,7 @@ export type RootStackParamList = {
   RepairDetail: { repairId: number };
   PartForm: { partId?: number };
   Restock: { partId: number; partName: string; costPrice: number };
+  BulkRestock: { partIds: number[] };
   CustomerDetail: { customerId: number };
   InvoicePreview: { invoiceId: number; type: 'repair' | 'device_sale' };
   InvoiceHistory: undefined;
@@ -18,6 +19,10 @@ export type RootStackParamList = {
   StaffPerformance: { staffId?: number };
   SupplierDetail: { supplierId: number };
   CoTechDetail: { coTechId: number };
+  License: undefined;
+  PriceInquiry: undefined;
+  ShopeeSearch: { query?: string; storeUrl?: string; title?: string } | undefined;
+  Quotation: undefined;
 };
 
 export type TabParamList = {

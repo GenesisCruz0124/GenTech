@@ -11,6 +11,7 @@ import {
   addRepairPart,
   getRepairParts,
   removeRepairPart,
+  recordPartsPurchase,
 } from '../repositories/partsRepository';
 
 interface PartsStore {
@@ -26,6 +27,10 @@ interface PartsStore {
   addToRepair: (repairId: number, partId: number, quantity: number, unitPrice: number) => Promise<void>;
   getForRepair: (repairId: number) => Promise<ReturnType<typeof getRepairParts>>;
   removeFromRepair: (repairPartId: number, partId: number, quantity: number) => Promise<void>;
+  bulkRestock: (
+    items: { part_id: number; quantity: number; cost_price: number }[],
+    shared: { supplier_name?: string; notes?: string; image_uri?: string; purchased_at?: string }
+  ) => Promise<void>;
 }
 
 export const usePartsStore = create<PartsStore>((set, get) => ({
@@ -71,6 +76,21 @@ export const usePartsStore = create<PartsStore>((set, get) => ({
 
   removeFromRepair: async (repairPartId, partId, quantity) => {
     await removeRepairPart(repairPartId, partId, quantity);
+    await get().fetchParts();
+  },
+
+  bulkRestock: async (items, shared) => {
+    for (const item of items) {
+      await recordPartsPurchase({
+        part_id: item.part_id,
+        quantity: item.quantity,
+        cost_price: item.cost_price,
+        supplier_name: shared.supplier_name,
+        notes: shared.notes,
+        image_uri: shared.image_uri,
+        purchased_at: shared.purchased_at,
+      });
+    }
     await get().fetchParts();
   },
 }));

@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Contacts from 'expo-contacts';
 import { ActivityIndicator, Avatar, Banner, FAB, List, Portal, Modal, TextInput, Button, Text, Searchbar, Checkbox } from 'react-native-paper';
 import { Customer } from '../../repositories/customerRepository';
+import { getLicenseStatus, getTrialCounts, TRIAL_LIMITS } from '../../services/licenseService';
 import { formatCurrency } from '../../utils/formatters';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -143,6 +144,24 @@ export default function CustomerListScreen() {
 
   const handleAdd = async () => {
     if (!name.trim()) return;
+    const lic = await getLicenseStatus();
+    if (!lic.isPro) {
+      if (lic.isExpired) {
+        Alert.alert('Trial Expired', 'Upgrade to Pro to add more customers.', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => (navigation as any).navigate('License') },
+        ]);
+        return;
+      }
+      const counts = await getTrialCounts();
+      if (counts.customers >= TRIAL_LIMITS.customers) {
+        Alert.alert('Trial Limit Reached', `Up to ${TRIAL_LIMITS.customers} customers allowed during the free trial.`, [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => (navigation as any).navigate('License') },
+        ]);
+        return;
+      }
+    }
     setSaving(true);
     await addCustomer({ name: name.trim(), phone: phone.trim(), email: email.trim() || undefined, address: address.trim() || undefined, facebook: facebook.trim() || undefined });
     setSaving(false);
@@ -257,7 +276,7 @@ export default function CustomerListScreen() {
             subtitle="Tap + to add a customer, or they are created automatically when you log a repair"
           />
         }
-        refreshing={isLoading}
+        refreshing={false}
         onRefresh={fetchCustomers}
         contentContainerStyle={filtered.length === 0 ? styles.empty : styles.list}
       />

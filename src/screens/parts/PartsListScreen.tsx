@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { FlatList, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Badge, Button, Divider, FAB, IconButton, List, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
+import { Badge, Button, Checkbox, Divider, FAB, IconButton, List, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
@@ -33,10 +33,25 @@ export default function PartsListScreen() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [activeRepairModels, setActiveRepairModels] = useState<string[]>([]);
 
+  // Bulk restock multi-select
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  const toggleSelectItem = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <View style={{ flexDirection: 'row', marginRight: 8, gap: 4 }}>
+          <TouchableOpacity style={hdrBtn} onPress={() => navigation.navigate('Quotation')}>
+            <MaterialCommunityIcons name="clipboard-text-outline" size={20} color="#fff" />
+          </TouchableOpacity>
           <TouchableOpacity
             style={[hdrBtn, filterChipsVisible && filter !== 'all' && hdrBtnActive]}
             onPress={() => setFilterChipsVisible((v: boolean) => !v)}
@@ -53,10 +68,16 @@ export default function PartsListScreen() {
           >
             <MaterialCommunityIcons name="magnify" size={20} color="#fff" />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[hdrBtn, selectMode && hdrBtnActive]}
+            onPress={() => { setSelectMode(v => !v); setSelectedIds(new Set()); }}
+          >
+            <MaterialCommunityIcons name={selectMode ? 'close' : 'checkbox-multiple-marked-outline'} size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
       ),
     });
-  }, [navigation, filterChipsVisible, filter, searchVisible]);
+  }, [navigation, filterChipsVisible, filter, searchVisible, selectMode]);
 
   // Restock modal
   const [restockTarget, setRestockTarget] = useState<Part | null>(null);
@@ -102,6 +123,8 @@ export default function PartsListScreen() {
     getAllCategories().then(setCategories);
     getAllDeviceBrands().then(setBrands);
     getModelsWithActiveRepairs().then(setActiveRepairModels).catch(() => {});
+    setSelectMode(false);
+    setSelectedIds(new Set());
   }, []));
 
   const openRestock = (part: Part) => {
@@ -236,12 +259,31 @@ export default function PartsListScreen() {
         keyExtractor={p => String(p.id)}
         renderItem={({ item }) => {
           const isLow = item.quantity <= item.low_stock_threshold;
+          const isSelected = selectedIds.has(item.id);
           return (
-            <TouchableOpacity style={styles.partCard} onPress={() => navigation.navigate('PartForm', { partId: item.id })} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={styles.partCard}
+              onPress={() => {
+                if (selectMode) {
+                  toggleSelectItem(item.id);
+                } else {
+                  navigation.navigate('PartForm', { partId: item.id });
+                }
+              }}
+              onLongPress={() => {
+                if (!selectMode) {
+                  setSelectMode(true);
+                  toggleSelectItem(item.id);
+                }
+              }}
+              activeOpacity={0.85}>
               {/* Top accent bar for low stock */}
               {isLow && <View style={styles.lowAccent} />}
 
               <View style={styles.cardBody}>
+                {selectMode && (
+                  <Checkbox status={isSelected ? 'checked' : 'unchecked'} onPress={() => toggleSelectItem(item.id)} color={Colors.primary} />
+                )}
                 {/* Left: name + tags */}
                 <View style={styles.cardLeft}>
                   <Text style={styles.partName} numberOfLines={1}>
@@ -273,6 +315,7 @@ export default function PartsListScreen() {
               </View>
 
               {/* Actions row */}
+              {!selectMode && (
               <View style={styles.cardActions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => openHistory(item)}>
                   <MaterialCommunityIcons name="history" size={16} color={Colors.textSecondary} />
@@ -296,15 +339,36 @@ export default function PartsListScreen() {
                   <Text style={[styles.actionBtnLabel, { color: Colors.error }]}>Delete</Text>
                 </TouchableOpacity>
               </View>
+              )}
             </TouchableOpacity>
           );
         }}
         ListEmptyComponent={<EmptyState icon="package-variant" title="No stocks yet" subtitle="Tap + to add a new stock" />}
-        refreshing={isLoading}
+        refreshing={false}
         onRefresh={fetchParts}
         contentContainerStyle={filtered.length === 0 ? styles.empty : styles.list}
       />
-      <FAB icon="plus" label="New Stock" style={styles.fab} onPress={() => navigation.navigate('PartForm', {})} color="#fff" />
+      {selectMode ? (
+        <View style={styles.selectBar}>
+          <Text style={styles.selectBarText}>{selectedIds.size} selected</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button mode="outlined" onPress={() => { setSelectMode(false); setSelectedIds(new Set()); }} style={styles.selectBarBtn} compact>
+              Cancel
+            </Button>
+            <Button
+              mode="contained"
+              icon="package-variant-closed"
+              disabled={selectedIds.size === 0}
+              onPress={() => navigation.navigate('BulkRestock', { partIds: Array.from(selectedIds) })}
+              style={styles.selectBarBtn}
+              compact>
+              Restock ({selectedIds.size})
+            </Button>
+          </View>
+        </View>
+      ) : (
+        <FAB icon="plus" label="New Stock" style={styles.fab} onPress={() => navigation.navigate('PartForm', {})} color="#fff" />
+      )}
 
 
       {/* History Modal */}
@@ -534,6 +598,9 @@ const styles = StyleSheet.create({
   list: { paddingBottom: 80 },
   empty: { flex: 1 },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: Colors.primary },
+  selectBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border, elevation: 8 },
+  selectBarText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  selectBarBtn: { borderRadius: 10 },
   modal: { backgroundColor: Colors.surface, margin: 16, borderRadius: 12, padding: 20, maxHeight: '90%' },
   modalTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 12 },
   // Restock modal redesign

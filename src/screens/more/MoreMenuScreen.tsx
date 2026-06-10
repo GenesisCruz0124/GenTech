@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
+import { useLicense } from '../../hooks/useLicense';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { Colors } from '../../constants/colors';
@@ -17,6 +18,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function MoreMenuScreen() {
   const navigation = useNavigation<Nav>();
   useAnimatedTabTitle(navigation, 'Settings');
+  const license = useLicense();
   const [confirmType, setConfirmType] = useState<'customers' | 'repairs' | 'devices' | 'stocks' | 'suppliers' | 'cotechs' | 'all' | null>(null);
   const [resetMenuVisible, setResetMenuVisible] = useState(false);
   const [seedSql, setSeedSql] = useState('');
@@ -119,6 +121,22 @@ export default function MoreMenuScreen() {
 
   return (
     <ScrollView style={styles.container}>
+
+      {/* Upgrade to Pro item (hidden if already Pro) */}
+      {!license.isPro && (
+        <List.Section>
+          <List.Item
+            title={license.isExpired ? 'Trial Expired — Upgrade to Pro' : `Upgrade to Pro · ${license.hoursLeft}h trial left`}
+            description="Unlock unlimited repairs, backup, invoices & more"
+            titleStyle={{ color: '#F59E0B', fontWeight: '800' }}
+            left={props => <List.Icon {...props} icon="crown" color="#F59E0B" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => navigation.navigate('License')}
+            style={[styles.item, { borderWidth: 1.5, borderColor: '#F59E0B' }]}
+          />
+        </List.Section>
+      )}
+
       <List.Section>
         <List.Subheader style={styles.subheader}>Settings</List.Subheader>
         <List.Item
@@ -137,14 +155,14 @@ export default function MoreMenuScreen() {
           onPress={() => navigation.navigate('Backup')}
           style={styles.item}
         />
-        <List.Item
+        {license.isPro && <List.Item
           title="Export Seed Data"
           description="Save current brands, models, categories & issues as initial data"
           left={props => <List.Icon {...props} icon="database-cog-outline" color={Colors.primary} />}
           right={props => <List.Icon {...props} icon="chevron-right" />}
           onPress={handleExportSeed}
           style={styles.item}
-        />
+        />}
       </List.Section>
 
       <Divider />

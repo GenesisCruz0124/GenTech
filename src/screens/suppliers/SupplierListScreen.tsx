@@ -36,6 +36,7 @@ export default function SupplierListScreen() {
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [facebook, setFacebook] = useState('');
+  const [shopeeUrl, setShopeeUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [kbHeight, setKbHeight] = useState(0);
 
@@ -51,6 +52,9 @@ export default function SupplierListScreen() {
     navigation.setOptions({
       headerRight: () => (
         <View style={{ flexDirection: 'row', marginRight: 8, gap: 4 }}>
+          <TouchableOpacity style={hdrBtn} onPress={() => navigation.navigate('PriceInquiry')}>
+            <MaterialCommunityIcons name="tag-search-outline" size={20} color="#fff" />
+          </TouchableOpacity>
           <TouchableOpacity style={[hdrBtn, filterMode === 'has_purchases' && hdrBtnActive]} onPress={() => setFilterVisible(v => !v)}>
             <MaterialCommunityIcons name="filter-variant" size={20} color="#fff" />
           </TouchableOpacity>
@@ -72,7 +76,7 @@ export default function SupplierListScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const openAdd = () => {
-    setName(''); setPhone(''); setEmail(''); setAddress(''); setFacebook('');
+    setName(''); setPhone(''); setEmail(''); setAddress(''); setFacebook(''); setShopeeUrl('');
     setModalVisible(true);
   };
 
@@ -86,6 +90,7 @@ export default function SupplierListScreen() {
         email: email.trim() || undefined,
         address: address.trim() || undefined,
         facebook: facebook.trim() || undefined,
+        shopee_url: shopeeUrl.trim() || undefined,
       });
       setModalVisible(false);
       load();
@@ -173,6 +178,17 @@ export default function SupplierListScreen() {
             )}
             right={() => (
               <View style={styles.itemRight}>
+                {item.shopee_url ? (
+                  <TouchableOpacity
+                    onPress={() => Linking.openURL(
+                      item.shopee_url!.startsWith('http') ? item.shopee_url! : `https://${item.shopee_url}`
+                    )}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.shopeeIcon}
+                  >
+                    <MaterialCommunityIcons name="shopping" size={22} color="#EE4D2D" />
+                  </TouchableOpacity>
+                ) : null}
                 {item.facebook ? (
                   <TouchableOpacity
                     onPress={() => openMessenger(item.facebook!)}
@@ -210,6 +226,7 @@ export default function SupplierListScreen() {
           <TextInput label="Email (optional)" value={email} onChangeText={setEmail} mode="outlined" style={styles.input} keyboardType="email-address" autoCapitalize="none" />
           <TextInput label="Address (optional)" value={address} onChangeText={setAddress} mode="outlined" style={styles.input} />
           <TextInput label="Facebook (username or URL)" value={facebook} onChangeText={setFacebook} mode="outlined" style={styles.input} autoCapitalize="none" />
+          <TextInput label="Shopee Store URL (optional)" value={shopeeUrl} onChangeText={setShopeeUrl} mode="outlined" style={styles.input} autoCapitalize="none" placeholder="https://shopee.ph/yourstore" />
           <View style={styles.modalActions}>
             <Button mode="outlined" onPress={closeModal} style={styles.btnHalf}>Cancel</Button>
             <Button mode="contained" onPress={handleSave} loading={saving} disabled={!name.trim() || saving} style={styles.btnHalf}>Add</Button>
@@ -236,6 +253,7 @@ const styles = StyleSheet.create({
   avatarImage: { width: 40, height: 40, borderRadius: 20, marginLeft: 8, alignSelf: 'center', backgroundColor: Colors.border },
   itemRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   messengerBtn: { padding: 2 },
+  shopeeIcon: { padding: 2 },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: Colors.primary },
   modal: { backgroundColor: Colors.surface, margin: 20, borderRadius: 14, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 14 },
