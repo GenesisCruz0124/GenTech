@@ -231,7 +231,16 @@ export default function SupplierDetailScreen({ route, navigation }: Props) {
                 {purchases.map(p => (
                   <List.Item
                     key={p.id}
-                    title={p.part_name}
+                    title={() => (
+                      <View style={styles.purchaseTitleRow}>
+                        <Text style={styles.purchaseTitle} numberOfLines={1}>{p.part_name}</Text>
+                        {p.category_name && (
+                          <View style={styles.catTag}>
+                            <Text style={styles.catTagText}>{p.category_name}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
                     description={`${p.quantity} unit${p.quantity !== 1 ? 's' : ''} @ ${formatCurrency(p.cost_price)} each  ·  ${formatDate(p.purchased_at)}`}
                     right={() => <Text style={styles.purchaseAmt}>{formatCurrency(p.cost_price * p.quantity)}</Text>}
                     left={props => <List.Icon {...props} icon="package-variant" color={Colors.primary} />}
@@ -304,6 +313,10 @@ const styles = StyleSheet.create({
   divider: { marginBottom: 12 },
   section: { fontSize: 11, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
   item: { backgroundColor: Colors.surface, borderRadius: 8, marginVertical: 3 },
+  purchaseTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  purchaseTitle: { fontSize: 16, color: Colors.text, flexShrink: 1 },
+  catTag: { backgroundColor: Colors.secondary + '18', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  catTagText: { fontSize: 11, color: Colors.secondary, fontWeight: '600' },
   purchaseAmt: { fontSize: 14, fontWeight: '700', color: Colors.primary, alignSelf: 'center', marginRight: 8 },
   noHistory: { textAlign: 'center', color: Colors.textSecondary, marginTop: 24, fontSize: 14 },
   modal: { backgroundColor: Colors.surface, margin: 20, borderRadius: 14, padding: 20 },

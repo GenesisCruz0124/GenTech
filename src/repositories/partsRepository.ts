@@ -98,6 +98,7 @@ export interface PartsPurchase {
   id: number;
   part_id: number;
   part_name: string;
+  category_name: string | null;
   quantity: number;
   cost_price: number;
   supplier_name: string | null;
@@ -134,9 +135,10 @@ export async function getPartsPurchaseHistory(partId?: number): Promise<PartsPur
   const where = partId ? 'WHERE pp.part_id = ?' : '';
   const params = partId ? [partId] : [];
   return db.getAllAsync<PartsPurchase>(
-    `SELECT pp.*, p.name as part_name
+    `SELECT pp.*, p.name as part_name, c.name as category_name
      FROM parts_purchases pp
      JOIN parts p ON p.id = pp.part_id
+     LEFT JOIN categories c ON c.id = p.category_id
      ${where}
      ORDER BY pp.purchased_at DESC`,
     params
