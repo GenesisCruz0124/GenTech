@@ -1335,6 +1335,18 @@ const MIGRATIONS: Migration[] = [
       `INSERT OR IGNORE INTO issues (name) VALUES ('Black Screen of Death')`,
     ],
   },
+  {
+    version: 37,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS part_compatible_models (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        part_id         INTEGER NOT NULL REFERENCES parts(id) ON DELETE CASCADE,
+        device_model_id INTEGER NOT NULL REFERENCES device_models(id) ON DELETE CASCADE,
+        created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+      )`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_part_compatible_models ON part_compatible_models (part_id, device_model_id)`,
+    ],
+  },
 ];
 
 export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {

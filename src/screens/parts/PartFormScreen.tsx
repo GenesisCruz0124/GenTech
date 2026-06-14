@@ -8,9 +8,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
-import { getPartById } from '../../repositories/partsRepository';
+import { getPartById, getCompatibleModels, setCompatibleModels, CompatibleModel } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
-import { searchDeviceModels, DeviceModel } from '../../repositories/deviceModelRepository';
+import { searchDeviceModels, createDeviceModel, DeviceModel } from '../../repositories/deviceModelRepository';
+import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import { Colors } from '../../constants/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PartForm'>;
@@ -42,13 +43,22 @@ export default function PartFormScreen({ route, navigation }: Props) {
   const [categorySuggestions, setCategorySuggestions] = useState<Category[]>([]);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
 
-  // Brand — read-only, auto-filled from selected model
+  // Brand — auto-filled from selected model, or pick from existing brands
   const [brandId, setBrandId] = useState<number | null>(null);
   const [brandInput, setBrandInput] = useState('');
+  const [brands, setBrands] = useState<DeviceBrand[]>([]);
+  const [brandSuggestions, setBrandSuggestions] = useState<DeviceBrand[]>([]);
+  const [showBrandSuggestions, setShowBrandSuggestions] = useState(false);
 
   // Model autocomplete
   const [modelSuggestions, setModelSuggestions] = useState<DeviceModel[]>([]);
   const [showModelSuggestions, setShowModelSuggestions] = useState(false);
+
+  // Compatible models — multi-select, with ability to add a new model
+  const [compatibleModels, setCompatibleModelsList] = useState<CompatibleModel[]>([]);
+  const [compatibleInput, setCompatibleInput] = useState('');
+  const [compatibleSuggestions, setCompatibleSuggestions] = useState<DeviceModel[]>([]);
+  const [showCompatibleSuggestions, setShowCompatibleSuggestions] = useState(false);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -57,6 +67,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
 
   useEffect(() => {
     getAllCategories().then(setCategories);
+    getAllDeviceBrands().then(setBrands);
     if (partId) {
       getPartById(partId).then(p => {
         if (p) {
@@ -72,6 +83,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
           if (p.brand_name) setBrandInput(p.brand_name);
         }
       });
+      getCompatibleModels(partId).then(setCompatibleModelsList);
     }
   }, [partId]);
 
@@ -87,11 +99,11 @@ export default function PartFormScreen({ route, navigation }: Props) {
         category_id: categoryId ?? undefined,
         brand_id: brandId ?? undefined,
       };
+      const targetId = partId ?? await addPart(payload);
       if (partId) {
         await editPart(partId, payload);
-      } else {
-        await addPart(payload);
       }
+      await setCompatibleModels(targetId, compatibleModels.map(m => m.id));
       navigation.goBack();
     } finally {
       setIsSubmitting(false);
@@ -143,22 +155,94 @@ export default function PartFormScreen({ route, navigation }: Props) {
 
           <View style={styles.divider} />
 
-          {/* Brand — auto-filled from selected model */}
+          {/* Brand — auto-filled from selected model, or pick from existing brands */}
           <View style={styles.fieldGroup}>
             <View style={styles.fieldGroupHeader}>
               <View style={[styles.dot, { backgroundColor: Colors.primary }]} />
               <Text style={styles.groupLabel}>Brand</Text>
             </View>
-            <View style={styles.brandDisplay}>
-              <MaterialCommunityIcons
-                name={brandId ? 'check-circle' : 'information-outline'}
-                size={16}
-                color={brandId ? Colors.success : Colors.textSecondary}
-              />
-              <Text style={[styles.brandDisplayText, !brandId && { color: Colors.textSecondary, fontStyle: 'italic' }]}>
-                {brandInput || 'Auto-filled when a model is selected'}
-              </Text>
+            <TextInput label="Brand" value={brandInput} onChangeText={(text) => {
+              setBrandInput(text); setBrandId(null);
+              const f = text.length >= 1 ? brands.filter(b => b.name.toLowerCase().includes(text.toLowerCase())) : brands;
+              setBrandSuggestions(f); setShowBrandSuggestions(f.length > 0);
+            }} onFocus={() => { setBrandSuggestions(brands); setShowBrandSuggestions(brands.length > 0); }}
+              mode="outlined" style={styles.input} placeholder="e.g. Apple, Samsung, Xiaomi..."
+              right={brandId ? <TextInput.Icon icon="check-circle" color={Colors.success} /> : undefined} />
+            {showBrandSuggestions && (
+              <View style={styles.suggestionBox}>
+                {brandSuggestions.map(b => (
+                  <TouchableOpacity key={b.id} style={styles.suggestionItem}
+                    onPress={() => { setBrandId(b.id); setBrandInput(b.name); setShowBrandSuggestions(false); }}>
+                    <Text style={styles.suggestionText}>{b.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            <HelperText type="info" visible={!brandId}>Auto-fills from model, or pick from existing brands</HelperText>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Compatible Models */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.warning }]} />
+              <Text style={styles.groupLabel}>Compatible Models</Text>
             </View>
+            {compatibleModels.length > 0 && (
+              <View style={styles.chipsRow}>
+                {compatibleModels.map(m => (
+                  <View key={m.id} style={styles.modelChip}>
+                    <Text style={styles.modelChipText}>{m.name}</Text>
+                    <TouchableOpacity onPress={() => setCompatibleModelsList(list => list.filter(x => x.id !== m.id))}>
+                      <MaterialCommunityIcons name="close" size={14} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+            )}
+            <TextInput label="Add Compatible Model" value={compatibleInput} onChangeText={async (text) => {
+              setCompatibleInput(text);
+              if (text.length >= 2) {
+                const r = await searchDeviceModels(text);
+                setCompatibleSuggestions(r);
+                setShowCompatibleSuggestions(true);
+              } else {
+                setShowCompatibleSuggestions(false);
+              }
+            }} mode="outlined" style={styles.input} placeholder="Search or type a new model..." />
+            {showCompatibleSuggestions && (
+              <View style={styles.suggestionBox}>
+                {compatibleSuggestions
+                  .filter(m => !compatibleModels.some(c => c.id === m.id))
+                  .map(m => (
+                    <TouchableOpacity key={m.id} style={styles.suggestionItem}
+                      onPress={() => {
+                        setCompatibleModelsList(list => [...list, { id: m.id, name: m.name }]);
+                        setCompatibleInput('');
+                        setShowCompatibleSuggestions(false);
+                      }}>
+                      <Text style={styles.suggestionText}>{m.name}</Text>
+                      {m.brand_name ? <Text style={styles.suggestionSub}>{m.brand_name}</Text> : null}
+                    </TouchableOpacity>
+                  ))}
+                {compatibleInput.trim().length >= 2 &&
+                  !compatibleSuggestions.some(m => m.name.toLowerCase() === compatibleInput.trim().toLowerCase()) && (
+                    <TouchableOpacity style={styles.suggestionItem}
+                      onPress={async () => {
+                        const name = compatibleInput.trim();
+                        const newId = await createDeviceModel(name, brandId ?? undefined);
+                        setCompatibleModelsList(list => [...list, { id: newId, name }]);
+                        setCompatibleInput('');
+                        setShowCompatibleSuggestions(false);
+                      }}>
+                      <Text style={[styles.suggestionText, { color: Colors.primary }]}>
+                        + Add "{compatibleInput.trim()}" as new model
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+              </View>
+            )}
           </View>
 
           <View style={styles.divider} />
@@ -270,18 +354,19 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 16 },
 
   input: { marginBottom: 2, backgroundColor: Colors.surface },
-  brandDisplay: {
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  modelChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.background,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    gap: 6,
+    backgroundColor: Colors.primary + '12',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.primary + '30',
   },
-  brandDisplayText: { fontSize: 14, color: Colors.text, flex: 1 },
+  modelChipText: { fontSize: 12, fontWeight: '600', color: Colors.primary },
   stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingVertical: 4 },
   stepperLabel: { fontSize: 14, color: Colors.text, fontWeight: '500' },
   stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },

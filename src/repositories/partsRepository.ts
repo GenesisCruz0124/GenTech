@@ -205,7 +205,36 @@ export async function deletePart(id: number): Promise<void> {
   const db = await getDB();
   await db.runAsync('DELETE FROM repair_parts WHERE part_id = ?', [id]);
   await db.runAsync('DELETE FROM parts_purchases WHERE part_id = ?', [id]);
+  await db.runAsync('DELETE FROM part_compatible_models WHERE part_id = ?', [id]);
   await db.runAsync('DELETE FROM parts WHERE id = ?', [id]);
+}
+
+export interface CompatibleModel {
+  id: number;
+  name: string;
+}
+
+export async function getCompatibleModels(partId: number): Promise<CompatibleModel[]> {
+  const db = await getDB();
+  return db.getAllAsync<CompatibleModel>(
+    `SELECT dm.id, dm.name
+     FROM part_compatible_models pcm
+     JOIN device_models dm ON dm.id = pcm.device_model_id
+     WHERE pcm.part_id = ?
+     ORDER BY dm.name ASC`,
+    [partId]
+  );
+}
+
+export async function setCompatibleModels(partId: number, modelIds: number[]): Promise<void> {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM part_compatible_models WHERE part_id = ?', [partId]);
+  for (const modelId of modelIds) {
+    await db.runAsync(
+      'INSERT OR IGNORE INTO part_compatible_models (part_id, device_model_id) VALUES (?, ?)',
+      [partId, modelId]
+    );
+  }
 }
 
 export async function getLowStockParts(): Promise<Part[]> {
