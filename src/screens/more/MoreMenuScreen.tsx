@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Clipboard, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Clipboard, Linking, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, List, Divider, Modal, Portal, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -285,6 +285,9 @@ export default function MoreMenuScreen() {
         <Text style={styles.versionNumber}>
           Version {Constants.expoConfig?.version ?? '1.0.0'}
         </Text>
+        <TouchableOpacity onPress={() => Linking.openURL('mailto:genesiscruz.dev@gmail.com')}>
+          <Text style={styles.developerText}>Developer: genesiscruz.dev@gmail.com</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -322,5 +325,6 @@ const styles = StyleSheet.create({
   versionFooter: { alignItems: 'center', paddingVertical: 28 },
   versionText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
   versionNumber: { fontSize: 12, color: Colors.border, marginTop: 4, letterSpacing: 0.5 },
+  developerText: { fontSize: 11, color: Colors.textSecondary, marginTop: 8 },
   subheader: { fontSize: 11, fontWeight: '700', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.8 },
 });
