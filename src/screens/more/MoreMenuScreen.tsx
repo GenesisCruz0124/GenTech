@@ -122,20 +122,24 @@ export default function MoreMenuScreen() {
   return (
     <ScrollView style={styles.container}>
 
-      {/* Upgrade to Pro item (hidden if already Pro) */}
-      {!license.isPro && (
-        <List.Section>
-          <List.Item
-            title={license.isExpired ? 'Trial Expired — Upgrade to Pro' : `Upgrade to Pro · ${license.hoursLeft}h trial left`}
-            description="Unlock unlimited repairs, backup, invoices & more"
-            titleStyle={{ color: '#F59E0B', fontWeight: '800' }}
-            left={props => <List.Icon {...props} icon="crown" color="#F59E0B" />}
-            right={props => <List.Icon {...props} icon="chevron-right" />}
-            onPress={() => navigation.navigate('License')}
-            style={[styles.item, { borderWidth: 1.5, borderColor: '#F59E0B' }]}
-          />
-        </List.Section>
-      )}
+      {/* Trial/Pro status item — always visible */}
+      <List.Section>
+        <List.Item
+          title={
+            license.isPro
+              ? 'Pro Activated'
+              : license.isExpired
+                ? 'Trial Expired — Upgrade to Pro'
+                : `Upgrade to Pro · ${license.hoursLeft}h trial left`
+          }
+          description={license.isPro ? 'All features unlocked — thank you!' : 'Unlock unlimited repairs, backup, invoices & more'}
+          titleStyle={{ color: '#F59E0B', fontWeight: '800' }}
+          left={props => <List.Icon {...props} icon="crown" color="#F59E0B" />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('License')}
+          style={[styles.item, { borderWidth: 1.5, borderColor: '#F59E0B' }]}
+        />
+      </List.Section>
 
       <List.Section>
         <List.Subheader style={styles.subheader}>Settings</List.Subheader>
