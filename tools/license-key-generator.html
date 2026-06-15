@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GenTech License Key Generator</title>
+<style>
+  :root {
+    --primary: #F59E0B;
+    --bg: #F2F4F7;
+    --surface: #FFFFFF;
+    --text: #1F2937;
+    --text-secondary: #6B7280;
+    --success: #16A34A;
+    --error: #DC2626;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, Roboto, "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 64px;
+  }
+  .container { width: 100%; max-width: 480px; }
+  h1 {
+    font-size: 20px;
+    font-weight: 800;
+    text-align: center;
+    margin: 8px 0 4px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+  }
+  .card {
+    background: var(--surface);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .card h2 {
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+    margin: 0 0 12px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  input {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid #E5E7EB;
+    border-radius: 10px;
+    font-size: 16px;
+    font-family: monospace;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  input:focus { outline: none; border-color: var(--primary); }
+  button {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: 10px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button:active { opacity: 0.85; }
+  button.secondary { background: #7C3AED; }
+  .result {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 10px;
+    background: #FFFBEB;
+    border: 1.5px solid var(--primary);
+    text-align: center;
+    display: none;
+  }
+  .result.show { display: block; }
+  .result .key {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #78350F;
+    word-break: break-all;
+  }
+  .result .hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+  }
+  .copy-btn {
+    margin-top: 10px;
+    background: #fff;
+    color: var(--primary);
+    border: 1.5px solid var(--primary);
+    font-weight: 700;
+  }
+  .status {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: 800;
+    display: none;
+  }
+  .status.show { display: block; }
+  .status.valid { background: #DCFCE7; color: var(--success); }
+  .status.invalid { background: #FEE2E2; color: var(--error); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>GenTech License Key Generator</h1>
+  <div class="subtitle">Device-bound Pro license keys — keep this tool private</div>
+
+  <div class="card">
+    <h2>Generate Key</h2>
+    <label for="genDeviceId">Customer Device ID</label>
+    <input id="genDeviceId" placeholder="e.g. A3F2B7C1D9E4" autocomplete="off" autocapitalize="characters" />
+    <button onclick="generate()">Generate Key</button>
+    <div class="result" id="genResult">
+      <div class="key" id="genKey"></div>
+      <div class="hint">This key only works on the device above.</div>
+      <button class="copy-btn" onclick="copyKey()">Tap to Copy</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Validate Key</h2>
+    <label for="valDeviceId">Device ID</label>
+    <input id="valDeviceId" placeholder="e.g. A3F2B7C1D9E4" autocomplete="off" autocapitalize="characters" />
+    <label for="valKey">License Key</label>
+    <input id="valKey" placeholder="GT-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" />
+    <button class="secondary" onclick="validate()">Validate Key</button>
+    <div class="status" id="valStatus"></div>
+  </div>
+</div>
+
+<script>
+  // Must match SECRET in src/services/licenseService.ts
+  const SECRET = 'GT2025_GENTECH_SEC';
+
+  function fnv32(str) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h;
+  }
+
+  function hex4(n) {
+    return (n & 0xffff).toString(16).toUpperCase().padStart(4, '0');
+  }
+
+  function generateKey(deviceId) {
+    const id = deviceId.trim().toUpperCase();
+    const p1 = hex4(fnv32(id + SECRET));
+    const p2 = hex4(fnv32(SECRET + id));
+    const ck = hex4(fnv32(p1 + p2 + SECRET + id));
+    return `GT-${p1}-${p2}-${ck}`;
+  }
+
+  function generate() {
+    const id = document.getElementById('genDeviceId').value.trim();
+    if (!id) return;
+    document.getElementById('genKey').textContent = generateKey(id);
+    document.getElementById('genResult').classList.add('show');
+  }
+
+  function copyKey() {
+    const key = document.getElementById('genKey').textContent;
+    if (!key) return;
+    navigator.clipboard?.writeText(key);
+  }
+
+  function validate() {
+    const id = document.getElementById('valDeviceId').value.trim();
+    const key = document.getElementById('valKey').value.trim();
+    if (!id || !key) return;
+    const expected = generateKey(id).replace(/[\s-]/g, '');
+    const clean = key.toUpperCase().replace(/[\s-]/g, '');
+    const el = document.getElementById('valStatus');
+    el.classList.remove('valid', 'invalid');
+    if (clean === expected) {
+      el.textContent = '✅ Valid for this device';
+      el.classList.add('show', 'valid');
+    } else {
+      el.textContent = '❌ Invalid for this device';
+      el.classList.add('show', 'invalid');
+    }
+  }
+</script>
+</body>
+</html>

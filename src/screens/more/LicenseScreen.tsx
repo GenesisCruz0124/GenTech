@@ -1,13 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Alert, Clipboard, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { activateLicense, generateLicenseKey, TRIAL_LIMITS } from '../../services/licenseService';
+import { activateLicense, TRIAL_LIMITS } from '../../services/licenseService';
 import { useLicense, refreshLicense } from '../../hooks/useLicense';
-import { getSetting } from '../../repositories/settingsRepository';
 import { Colors } from '../../constants/colors';
-
-const SECRET_PHONE = '09255601854';
 
 const PRO_FEATURES = [
   { icon: 'wrench',                 label: 'Unlimited Repairs' },
@@ -25,16 +22,6 @@ export default function LicenseScreen() {
   const license = useLicense();
   const [key, setKey] = useState('');
   const [saving, setSaving] = useState(false);
-  const [isDevMode, setIsDevMode] = useState(false);
-
-  // Check if the technician's phone matches the secret number
-  useEffect(() => {
-    getSetting('owner_phone').then(phone => {
-      if (phone?.replace(/\D/g, '') === SECRET_PHONE.replace(/\D/g, '')) {
-        setIsDevMode(true);
-      }
-    }).catch(() => {});
-  }, []);
 
   const handleActivate = async () => {
     if (!key.trim()) return;
@@ -134,73 +121,9 @@ export default function LicenseScreen() {
         </Button>
       </View>
 
-      {/* 🔒 Secret dev panel — visible only to the registered technician */}
-      {isDevMode && <KeyGeneratorPanel />}
-
     </ScrollView>
   );
 }
-
-function KeyGeneratorPanel() {
-  const [deviceId, setDeviceId] = useState('');
-  const [generatedKey, setGeneratedKey] = useState('');
-
-  const generate = () => {
-    const id = deviceId.trim().toUpperCase();
-    if (!id) return;
-    const k = generateLicenseKey(id);
-    setGeneratedKey(k);
-  };
-
-  const copy = () => {
-    if (!generatedKey) return;
-    Clipboard.setString(generatedKey);
-    Alert.alert('Copied!', `Key copied:\n${generatedKey}`);
-  };
-
-  return (
-    <View style={devStyles.panel}>
-      <View style={devStyles.header}>
-        <MaterialCommunityIcons name="shield-key-outline" size={18} color="#7C3AED" />
-        <Text style={devStyles.title}>License Key Generator</Text>
-      </View>
-      <TextInput
-        label="Customer Device ID"
-        value={deviceId}
-        onChangeText={setDeviceId}
-        mode="outlined"
-        style={devStyles.input}
-        autoCapitalize="characters"
-        placeholder="e.g. A3F2B7C1D9E4"
-      />
-      <Button mode="contained" onPress={generate} disabled={!deviceId.trim()}
-        style={devStyles.btn} buttonColor="#7C3AED" icon="key-variant">
-        Generate Key
-      </Button>
-      {generatedKey ? (
-        <TouchableOpacity style={devStyles.result} onPress={copy}>
-          <Text style={devStyles.keyText}>{generatedKey}</Text>
-          <View style={devStyles.copyRow}>
-            <MaterialCommunityIcons name="content-copy" size={13} color="#7C3AED" />
-            <Text style={devStyles.copyHint}>Tap to copy</Text>
-          </View>
-        </TouchableOpacity>
-      ) : null}
-    </View>
-  );
-}
-
-const devStyles = StyleSheet.create({
-  panel: { backgroundColor: '#F5F3FF', borderRadius: 14, padding: 16, borderWidth: 1.5, borderColor: '#7C3AED40', gap: 10 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 14, fontWeight: '800', color: '#7C3AED' },
-  input: { backgroundColor: '#fff' },
-  btn: { borderRadius: 10 },
-  result: { backgroundColor: '#EDE9FE', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: '#7C3AED40' },
-  keyText: { fontSize: 18, fontWeight: '800', color: '#4C1D95', letterSpacing: 1.5, textAlign: 'center' },
-  copyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 6 },
-  copyHint: { fontSize: 11, color: '#7C3AED', fontWeight: '600' },
-});
 
 function DeviceIdCard({ deviceId }: { deviceId: string }) {
   const copy = () => {
