@@ -13,6 +13,26 @@ export interface Supplier {
   created_at: string;
   purchase_count?: number;
   last_purchase_at?: string | null;
+  has_battery_purchase?: boolean;
+  has_display_purchase?: boolean;
+}
+
+async function supplierHasCategoryPurchase(db: Awaited<ReturnType<typeof getDB>>, supplierName: string, categoryName: string): Promise<boolean> {
+  try {
+    const row = await db.getFirstAsync<{ found: number }>(
+      `SELECT EXISTS(
+         SELECT 1 FROM parts_purchases pp
+         JOIN parts p ON p.id = pp.part_id
+         JOIN categories c ON c.id = p.category_id
+         WHERE LOWER(TRIM(COALESCE(pp.supplier_name,''))) = LOWER(TRIM(?))
+           AND LOWER(c.name) = LOWER(?)
+       ) as found`,
+      [supplierName, categoryName]
+    );
+    return !!row?.found;
+  } catch {
+    return false;
+  }
 }
 
 export async function getAllSuppliers(): Promise<Supplier[]> {
@@ -45,7 +65,9 @@ export async function getAllSuppliers(): Promise<Supplier[]> {
       purchase_count = row?.count ?? 0;
       last_purchase_at = row?.last_at ?? null;
     } catch {}
-    return { ...s, facebook, email, photo_uri, purchase_count, last_purchase_at };
+    const has_battery_purchase = await supplierHasCategoryPurchase(db, s.name, 'Battery');
+    const has_display_purchase = await supplierHasCategoryPurchase(db, s.name, 'Display');
+    return { ...s, facebook, email, photo_uri, purchase_count, last_purchase_at, has_battery_purchase, has_display_purchase };
   }));
   return result;
 }

@@ -25,7 +25,7 @@ export default function SupplierListScreen() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
-  const [filterMode, setFilterMode] = useState<'all' | 'has_purchases' | 'has_shopee'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'has_purchases' | 'has_shopee' | 'has_battery' | 'has_display'>('all');
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortMode, setSortMode] = useState<'alpha' | 'recent'>('alpha');
 
@@ -120,6 +120,8 @@ export default function SupplierListScreen() {
       if (!matchSearch) return false;
       if (filterMode === 'has_purchases') return (s.purchase_count ?? 0) > 0;
       if (filterMode === 'has_shopee') return !!s.shopee_url;
+      if (filterMode === 'has_battery') return !!s.has_battery_purchase;
+      if (filterMode === 'has_display') return !!s.has_display_purchase;
       return true;
     })
     .sort((a, b) => {
@@ -147,9 +149,13 @@ export default function SupplierListScreen() {
 
       {filterVisible && (
         <View style={styles.filterRow}>
-          {(['all', 'has_purchases', 'has_shopee'] as const).map(f => {
+          {(['all', 'has_purchases', 'has_shopee', 'has_battery', 'has_display'] as const).map(f => {
             const active = filterMode === f;
-            const label = f === 'all' ? 'All' : f === 'has_purchases' ? 'Has Purchases' : 'Has Shopee URL';
+            const label = f === 'all' ? 'All'
+              : f === 'has_purchases' ? 'Has Purchases'
+              : f === 'has_shopee' ? 'Has Shopee URL'
+              : f === 'has_battery' ? 'Purchased Battery'
+              : 'Purchased Display';
             return (
               <TouchableOpacity
                 key={f}
@@ -243,7 +249,7 @@ export default function SupplierListScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   search: { margin: 8, borderRadius: 12, elevation: 0, backgroundColor: Colors.background },
-  filterRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, paddingVertical: 8, gap: 8, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
   filterChip: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.background },
   filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filterChipLabel: { fontSize: 12, fontWeight: '600', color: Colors.text },
