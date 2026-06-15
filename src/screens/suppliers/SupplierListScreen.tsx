@@ -25,7 +25,7 @@ export default function SupplierListScreen() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [search, setSearch] = useState('');
   const [searchVisible, setSearchVisible] = useState(false);
-  const [filterMode, setFilterMode] = useState<'all' | 'has_purchases'>('all');
+  const [filterMode, setFilterMode] = useState<'all' | 'has_purchases' | 'has_shopee'>('all');
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortMode, setSortMode] = useState<'alpha' | 'recent'>('alpha');
 
@@ -55,7 +55,7 @@ export default function SupplierListScreen() {
           <TouchableOpacity style={hdrBtn} onPress={() => navigation.navigate('PriceInquiry')}>
             <MaterialCommunityIcons name="tag-search-outline" size={20} color="#fff" />
           </TouchableOpacity>
-          <TouchableOpacity style={[hdrBtn, filterMode === 'has_purchases' && hdrBtnActive]} onPress={() => setFilterVisible(v => !v)}>
+          <TouchableOpacity style={[hdrBtn, filterMode !== 'all' && hdrBtnActive]} onPress={() => setFilterVisible(v => !v)}>
             <MaterialCommunityIcons name="filter-variant" size={20} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity style={[hdrBtn, sortMode === 'recent' && hdrBtnActive]} onPress={toggleSort}>
@@ -119,6 +119,7 @@ export default function SupplierListScreen() {
         (s.phone ?? '').includes(search);
       if (!matchSearch) return false;
       if (filterMode === 'has_purchases') return (s.purchase_count ?? 0) > 0;
+      if (filterMode === 'has_shopee') return !!s.shopee_url;
       return true;
     })
     .sort((a, b) => {
@@ -146,8 +147,9 @@ export default function SupplierListScreen() {
 
       {filterVisible && (
         <View style={styles.filterRow}>
-          {(['all', 'has_purchases'] as const).map(f => {
+          {(['all', 'has_purchases', 'has_shopee'] as const).map(f => {
             const active = filterMode === f;
+            const label = f === 'all' ? 'All' : f === 'has_purchases' ? 'Has Purchases' : 'Has Shopee URL';
             return (
               <TouchableOpacity
                 key={f}
@@ -156,7 +158,7 @@ export default function SupplierListScreen() {
                 activeOpacity={0.75}
               >
                 <Text style={[styles.filterChipLabel, active && styles.filterChipLabelActive]}>
-                  {f === 'all' ? 'All' : 'Has Purchases'}
+                  {label}
                 </Text>
               </TouchableOpacity>
             );
