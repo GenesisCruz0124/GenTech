@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
-import { FAB, List, SegmentedButtons, Text } from 'react-native-paper';
+import { Alert, FlatList, StyleSheet, View } from 'react-native';
+import { FAB, IconButton, List, SegmentedButtons, Text } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -15,16 +15,31 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 export default function DevicesScreen() {
   const navigation = useNavigation<Nav>();
   useAnimatedTabTitle(navigation, 'Devices');
-  const { sales, purchases, isLoading, fetchSales, fetchPurchases } = useDeviceStore();
+  const { sales, purchases, isLoading, fetchSales, fetchPurchases, removeSale, removePurchase } = useDeviceStore();
   const [tab, setTab] = useState('sales');
 
   useFocusEffect(useCallback(() => {
     fetchSales();
     fetchPurchases();
   }, []));
-
   const isSales = tab === 'sales';
   const data = isSales ? sales : purchases;
+
+  const handleDelete = (item: any) => {
+    const label = `${item.device_name} ${item.device_model}`;
+    Alert.alert(
+      `Delete ${isSales ? 'Sale' : 'Purchase'}`,
+      `Remove "${label}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => isSales ? removeSale(item.id) : removePurchase(item.id),
+        },
+      ],
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -48,6 +63,13 @@ export default function DevicesScreen() {
               <View style={styles.right}>
                 <Text style={styles.price}>{formatCurrency(isSales ? item.sale_price : item.purchase_price)}</Text>
                 <Text style={styles.date}>{formatDate(isSales ? item.sold_at : item.purchased_at)}</Text>
+                <IconButton
+                  icon="delete-outline"
+                  size={18}
+                  iconColor={Colors.error}
+                  style={styles.deleteBtn}
+                  onPress={() => handleDelete(item)}
+                />
               </View>
             )}
             style={styles.item}
@@ -78,7 +100,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   tabs: { margin: 12 },
   item: { backgroundColor: Colors.surface, marginHorizontal: 12, marginVertical: 4, borderRadius: 8 },
-  right: { justifyContent: 'center', alignItems: 'flex-end', paddingRight: 4 },
+  right: { justifyContent: 'center', alignItems: 'flex-end' },
+  deleteBtn: { margin: 0, marginTop: 2 },
   price: { fontSize: 15, fontWeight: 'bold', color: Colors.primary },
   date: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
   list: { paddingBottom: 80 },
