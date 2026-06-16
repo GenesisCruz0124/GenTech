@@ -23,6 +23,9 @@ export type RootStackParamList = {
   PriceInquiry: undefined;
   ShopeeSearch: { query?: string; storeUrl?: string; title?: string } | undefined;
   Quotation: undefined;
+  Devices: undefined;
+  DeviceSaleForm: undefined;
+  DevicePurchaseForm: undefined;
 };
 
 export type TabParamList = {

@@ -28,6 +28,9 @@ import LicenseScreen from '../screens/more/LicenseScreen';
 import PriceInquiryScreen from '../screens/suppliers/PriceInquiryScreen';
 import ShopeeSearchScreen from '../screens/suppliers/ShopeeSearchScreen';
 import QuotationScreen from '../screens/parts/QuotationScreen';
+import DevicesScreen from '../screens/devices/DevicesScreen';
+import DeviceSaleFormScreen from '../screens/devices/DeviceSaleFormScreen';
+import DevicePurchaseFormScreen from '../screens/devices/DevicePurchaseFormScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -69,6 +72,9 @@ export default function RootNavigator() {
         <Stack.Screen name="PriceInquiry" component={PriceInquiryScreen} options={{ title: 'Price Inquiry' }} />
         <Stack.Screen name="Quotation" component={QuotationScreen} options={{ title: 'Price Quotation' }} />
         <Stack.Screen name="ShopeeSearch" component={ShopeeSearchScreen} options={({ route }) => ({ title: (route.params as any)?.title ?? 'Shopee Search', headerStyle: { backgroundColor: '#EE4D2D' }, headerTintColor: '#fff' })} />
+        <Stack.Screen name="Devices" component={DevicesScreen} options={{ title: 'Device Sales & Purchases' }} />
+        <Stack.Screen name="DeviceSaleForm" component={DeviceSaleFormScreen} options={{ title: 'Record Device Sale', presentation: 'modal' }} />
+        <Stack.Screen name="DevicePurchaseForm" component={DevicePurchaseFormScreen} options={{ title: 'Record Device Purchase', presentation: 'modal' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

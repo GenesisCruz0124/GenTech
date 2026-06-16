@@ -168,6 +168,20 @@ export default function MoreMenuScreen() {
       <Divider />
 
       <List.Section>
+        <List.Subheader style={styles.subheader}>Records</List.Subheader>
+        <List.Item
+          title="Device Sales & Purchases"
+          description="View and manage sold / bought device history"
+          left={props => <List.Icon {...props} icon="cellphone-arrow-down-variant" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('Devices')}
+          style={styles.item}
+        />
+      </List.Section>
+
+      <Divider />
+
+      <List.Section>
         <List.Subheader style={styles.subheader}>Manage</List.Subheader>
         <List.Item
           title="Brands"
