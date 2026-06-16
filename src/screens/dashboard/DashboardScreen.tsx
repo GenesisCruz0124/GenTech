@@ -151,6 +151,29 @@ export default function DashboardScreen() {
   const goRepairs = (filter: string) =>
     navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter } } as any);
 
+  const goExpenseDetail = () => {
+    let dateFrom: string | undefined;
+    let dateTo: string | undefined;
+    if (period === 'custom') {
+      dateFrom = customFrom;
+      dateTo = customTo;
+    } else if (period === 'weekly') {
+      const { start, end } = getWeekRange(targetDate);
+      dateFrom = toIso(start);
+      dateTo = toIso(end);
+    } else if (period === 'monthly') {
+      const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const end = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+      dateFrom = toIso(start);
+      dateTo = toIso(end);
+    } else if (period === 'yearly') {
+      dateFrom = `${targetDate.getFullYear()}-01-01`;
+      dateTo = `${targetDate.getFullYear()}-12-31`;
+    }
+    const label = period === 'all_time' ? 'All Time' : period === 'custom' ? `${customFrom} – ${customTo}` : navLabel();
+    navigation.navigate('ExpenseDetail', { dateFrom, dateTo, label });
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -227,20 +250,31 @@ export default function DashboardScreen() {
       {/* ── FINANCIAL METRICS 2×2 ─────────────────── */}
       <View style={styles.metricsGrid}>
         {[
-          { label: 'Gross Income',   value: formatCurrency(summary.gross_income),  color: Colors.primary, icon: 'trending-up' },
-          { label: 'Total Expense',  value: formatCurrency(summary.total_expense), color: Colors.error,   icon: 'trending-down' },
-          { label: 'Total Paid',     value: formatCurrency(summary.total_paid),    color: Colors.success, icon: 'cash-check' },
-          { label: 'For Collection', value: formatCurrency(summary.unpaid_amount), color: Colors.warning, icon: 'cash-clock' },
-        ].map(m => (
-          <View key={m.label} style={[styles.metricCard, { borderTopColor: m.color }]}>
-            <View style={styles.metricTop}>
-              <MaterialCommunityIcons name={m.icon as any} size={15} color={m.color} />
-              <Text style={[styles.metricLabel, { color: m.color }]}>{m.label}</Text>
+          { label: 'Gross Income',   value: formatCurrency(summary.gross_income),  color: Colors.primary, icon: 'trending-up',   onPress: undefined },
+          { label: 'Total Expense',  value: formatCurrency(summary.total_expense), color: Colors.error,   icon: 'trending-down', onPress: goExpenseDetail },
+          { label: 'Total Paid',     value: formatCurrency(summary.total_paid),    color: Colors.success, icon: 'cash-check',    onPress: undefined },
+          { label: 'For Collection', value: formatCurrency(summary.unpaid_amount), color: Colors.warning, icon: 'cash-clock',    onPress: undefined },
+        ].map(m => {
+          const cardContent = (
+            <>
+              <View style={styles.metricTop}>
+                <MaterialCommunityIcons name={m.icon as any} size={15} color={m.color} />
+                <Text style={[styles.metricLabel, { color: m.color }]}>{m.label}</Text>
+                {m.onPress && <MaterialCommunityIcons name="chevron-right" size={13} color={m.color} style={{ marginLeft: 'auto' }} />}
+              </View>
+              <Text style={[styles.metricValue, { color: m.color }]}>{m.value}</Text>
+            </>
+          );
+          return m.onPress ? (
+            <TouchableOpacity key={m.label} style={[styles.metricCard, { borderTopColor: m.color }]} onPress={m.onPress} activeOpacity={0.75}>
+              {cardContent}
+            </TouchableOpacity>
+          ) : (
+            <View key={m.label} style={[styles.metricCard, { borderTopColor: m.color }]}>
+              {cardContent}
             </View>
-            <Text style={[styles.metricValue, { color: m.color }]}>{m.value}</Text>
-            {(m as any).sub ? <Text style={styles.metricSub}>{(m as any).sub}</Text> : null}
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       {/* ── REPAIR OVERVIEW ───────────────────────── */}

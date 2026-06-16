@@ -145,6 +145,23 @@ export async function getPartsPurchaseHistory(partId?: number): Promise<PartsPur
   );
 }
 
+export async function getPartsPurchasesByDateRange(dateFrom?: string, dateTo?: string): Promise<PartsPurchase[]> {
+  const db = await getDB();
+  const where = (dateFrom && dateTo)
+    ? `WHERE strftime('%Y-%m-%d', pp.purchased_at) BETWEEN ? AND ?`
+    : '';
+  const params: string[] = (dateFrom && dateTo) ? [dateFrom, dateTo] : [];
+  return db.getAllAsync<PartsPurchase>(
+    `SELECT pp.*, p.name as part_name, c.name as category_name
+     FROM parts_purchases pp
+     JOIN parts p ON p.id = pp.part_id
+     LEFT JOIN categories c ON c.id = p.category_id
+     ${where}
+     ORDER BY pp.purchased_at DESC`,
+    params
+  );
+}
+
 export async function updatePartsPurchase(
   id: number,
   data: { quantity: number; cost_price: number; supplier_name?: string; notes?: string; image_uri?: string | null }

@@ -28,6 +28,7 @@ import LicenseScreen from '../screens/more/LicenseScreen';
 import PriceInquiryScreen from '../screens/suppliers/PriceInquiryScreen';
 import ShopeeSearchScreen from '../screens/suppliers/ShopeeSearchScreen';
 import QuotationScreen from '../screens/parts/QuotationScreen';
+import ExpenseDetailScreen from '../screens/expenses/ExpenseDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -69,6 +70,7 @@ export default function RootNavigator() {
         <Stack.Screen name="PriceInquiry" component={PriceInquiryScreen} options={{ title: 'Price Inquiry' }} />
         <Stack.Screen name="Quotation" component={QuotationScreen} options={{ title: 'Price Quotation' }} />
         <Stack.Screen name="ShopeeSearch" component={ShopeeSearchScreen} options={({ route }) => ({ title: (route.params as any)?.title ?? 'Shopee Search', headerStyle: { backgroundColor: '#EE4D2D' }, headerTintColor: '#fff' })} />
+        <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} options={{ title: 'Expense Details' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
