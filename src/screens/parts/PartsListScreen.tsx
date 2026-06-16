@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Badge, Button, Checkbox, Divider, FAB, IconButton, List, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -8,7 +8,7 @@ import { useLayoutEffect } from 'react';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
-import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, getModelsWithActiveRepairs } from '../../repositories/partsRepository';
+import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, syncCostPriceFromLastPurchase, deletePartsPurchase, PartsPurchase, getModelsWithActiveRepairs } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
 import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import ImagePickerField from '../../components/common/ImagePickerField';
@@ -141,6 +141,26 @@ export default function PartsListScreen() {
     setHistoryTarget(part);
     const h = await getPartsPurchaseHistory(part.id);
     setHistory(h);
+  };
+
+  const handleDeletePurchase = (p: PartsPurchase) => {
+    Alert.alert(
+      'Delete Purchase Record',
+      `Remove this restock of +${p.quantity} units? Stock will be reduced by ${p.quantity}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deletePartsPurchase(p.id, p.part_id, p.quantity);
+            await fetchParts();
+            const h = await getPartsPurchaseHistory(p.part_id);
+            setHistory(h);
+          },
+        },
+      ],
+    );
   };
 
   const openEditPurchase = (p: PartsPurchase) => {
@@ -396,7 +416,10 @@ export default function PartsListScreen() {
                     </View>
                     <View style={styles.historyRight}>
                       <Text style={styles.historyCost}>{formatCurrency(h.cost_price * h.quantity)}</Text>
-                      <IconButton icon="pencil-outline" size={18} iconColor={Colors.primary} onPress={() => openEditPurchase(h)} />
+                      <View style={{ flexDirection: 'row' }}>
+                        <IconButton icon="pencil-outline" size={18} iconColor={Colors.primary} onPress={() => openEditPurchase(h)} />
+                        <IconButton icon="delete-outline" size={18} iconColor={Colors.error} onPress={() => handleDeletePurchase(h)} />
+                      </View>
                     </View>
                   </View>
                   {i < history.length - 1 && <Divider />}

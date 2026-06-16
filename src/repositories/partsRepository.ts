@@ -157,6 +157,13 @@ export async function updatePartsPurchase(
   );
 }
 
+export async function deletePartsPurchase(id: number, partId: number, quantity: number): Promise<void> {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM parts_purchases WHERE id = ?', [id]);
+  await adjustStock(partId, -quantity);
+  await syncCostPriceFromLastPurchase(partId);
+}
+
 export async function syncCostPriceFromLastPurchase(partId: number): Promise<void> {
   const db = await getDB();
   const latest = await db.getFirstAsync<{ cost_price: number }>(
