@@ -175,14 +175,41 @@ export async function getPartsPurchaseHistory(partId?: number): Promise<PartsPur
 
 export async function updatePartsPurchase(
   id: number,
-  data: { quantity: number; cost_price: number; supplier_name?: string; notes?: string; image_uri?: string | null }
+  data: { quantity: number; cost_price: number; supplier_name?: string; notes?: string; image_uri?: string | null; status?: RestockStatus }
 ): Promise<void> {
   const db = await getDB();
-  await db.runAsync(
-    `UPDATE parts_purchases SET quantity = ?, cost_price = ?, supplier_name = ?, notes = ?, image_uri = ?
-     WHERE id = ?`,
-    [data.quantity, data.cost_price, data.supplier_name ?? null, data.notes ?? null, data.image_uri ?? null, id]
+  const existing = await db.getFirstAsync<{ part_id: number; quantity: number; status: RestockStatus }>(
+    'SELECT part_id, quantity, status FROM parts_purchases WHERE id = ?',
+    [id]
   );
+  if (!existing) return;
+  const newStatus = data.status ?? existing.status;
+  await db.runAsync(
+    `UPDATE parts_purchases SET quantity = ?, cost_price = ?, supplier_name = ?, notes = ?, image_uri = ?, status = ?
+     WHERE id = ?`,
+    [data.quantity, data.cost_price, data.supplier_name ?? null, data.notes ?? null, data.image_uri ?? null, newStatus, id]
+  );
+  // Reconcile on-hand stock for any change in quantity or received status.
+  const oldStockEffect = existing.status === 'received' ? existing.quantity : 0;
+  const newStockEffect = newStatus === 'received' ? data.quantity : 0;
+  const delta = newStockEffect - oldStockEffect;
+  if (delta !== 0) {
+    await adjustStock(existing.part_id, delta);
+  }
+}
+
+export async function deletePartsPurchase(id: number): Promise<void> {
+  const db = await getDB();
+  const existing = await db.getFirstAsync<{ part_id: number; quantity: number; status: RestockStatus }>(
+    'SELECT part_id, quantity, status FROM parts_purchases WHERE id = ?',
+    [id]
+  );
+  if (!existing) return;
+  await db.runAsync('DELETE FROM parts_purchases WHERE id = ?', [id]);
+  // Reverse the stock that this purchase had contributed, if any.
+  if (existing.status === 'received') {
+    await adjustStock(existing.part_id, -existing.quantity);
+  }
 }
 
 export async function syncCostPriceFromLastPurchase(partId: number): Promise<void> {

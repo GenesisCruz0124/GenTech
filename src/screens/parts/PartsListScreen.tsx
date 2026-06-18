@@ -8,7 +8,7 @@ import { useLayoutEffect } from 'react';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
-import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, getModelsWithActiveRepairs, getPartIdsWithPendingRestock } from '../../repositories/partsRepository';
+import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, deletePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, RestockStatus, getModelsWithActiveRepairs, getPartIdsWithPendingRestock } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
 import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import ImagePickerField from '../../components/common/ImagePickerField';
@@ -109,7 +109,9 @@ export default function PartsListScreen() {
   const [editSupplier, setEditSupplier] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editImage, setEditImage] = useState<string | null>(null);
+  const [editStatus, setEditStatus] = useState<RestockStatus>('received');
   const [editSaving, setEditSaving] = useState(false);
+  const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<PartsPurchase | null>(null);
 
   // Full-screen image viewer
   const [viewImage, setViewImage] = useState<string | null>(null);
@@ -169,6 +171,7 @@ export default function PartsListScreen() {
     setEditSupplier(p.supplier_name ?? '');
     setEditNotes(p.notes ?? '');
     setEditImage(p.image_uri ?? null);
+    setEditStatus(p.status);
   };
 
   const handleSaveEditPurchase = async () => {
@@ -180,14 +183,27 @@ export default function PartsListScreen() {
       supplier_name: editSupplier.trim() || undefined,
       notes: editNotes.trim() || undefined,
       image_uri: editImage,
+      status: editStatus,
     });
     await syncCostPriceFromLastPurchase(editPurchase.part_id);
     await fetchParts();
     // Refresh history list
     const h = await getPartsPurchaseHistory(editPurchase.part_id);
     setHistory(h);
+    getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
     setEditSaving(false);
     setEditPurchase(null);
+  };
+
+  const handleDeletePurchase = async () => {
+    if (!deletePurchaseTarget) return;
+    const partId = deletePurchaseTarget.part_id;
+    await deletePartsPurchase(deletePurchaseTarget.id);
+    await fetchParts();
+    const h = await getPartsPurchaseHistory(partId);
+    setHistory(h);
+    getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
+    setDeletePurchaseTarget(null);
   };
 
   const handleRestock = async () => {
@@ -448,7 +464,10 @@ export default function PartsListScreen() {
                     </View>
                     <View style={styles.historyRight}>
                       <Text style={styles.historyCost}>{formatCurrency(h.cost_price * h.quantity)}</Text>
-                      <IconButton icon="pencil-outline" size={18} iconColor={Colors.primary} onPress={() => openEditPurchase(h)} />
+                      <View style={{ flexDirection: 'row' }}>
+                        <IconButton icon="pencil-outline" size={18} iconColor={Colors.primary} onPress={() => openEditPurchase(h)} />
+                        <IconButton icon="delete-outline" size={18} iconColor={Colors.error} onPress={() => setDeletePurchaseTarget(h)} />
+                      </View>
                     </View>
                   </View>
                   {i < history.length - 1 && <Divider />}
@@ -469,6 +488,17 @@ export default function PartsListScreen() {
         destructive
         onConfirm={async () => { if (deleteTarget) { await removePart(deleteTarget.id); setDeleteTarget(null); } }}
         onDismiss={() => setDeleteTarget(null)}
+      />
+
+      {/* Delete purchase record confirmation */}
+      <ConfirmDialog
+        visible={!!deletePurchaseTarget}
+        title="Delete Purchase Record"
+        message="Delete this restock record? Stock on hand will be adjusted accordingly. This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDeletePurchase}
+        onDismiss={() => setDeletePurchaseTarget(null)}
       />
 
       {/* Edit Purchase Modal */}
@@ -527,6 +557,24 @@ export default function PartsListScreen() {
                 <Text style={styles.restockSectionLabel}>Notes</Text>
                 <TextInput value={editNotes} onChangeText={setEditNotes} mode="outlined"
                   style={styles.restockInput} multiline dense />
+              </View>
+
+              <View style={styles.restockSection}>
+                <Text style={styles.restockSectionLabel}>Status</Text>
+                <View style={styles.statusToggle}>
+                  <TouchableOpacity
+                    style={[styles.statusBtn, editStatus === 'to_receive' && styles.statusBtnActive]}
+                    onPress={() => setEditStatus('to_receive')}
+                  >
+                    <Text style={[styles.statusBtnLabel, editStatus === 'to_receive' && styles.statusBtnLabelActive]}>To Receive</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.statusBtn, editStatus === 'received' && styles.statusBtnActive]}
+                    onPress={() => setEditStatus('received')}
+                  >
+                    <Text style={[styles.statusBtnLabel, editStatus === 'received' && styles.statusBtnLabelActive]}>Received</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               <View style={styles.restockSection}>
@@ -696,4 +744,9 @@ const styles = StyleSheet.create({
   imageViewer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center', alignItems: 'center' },
   fullImage: { width: '100%', height: '80%' },
   closeBtn: { position: 'absolute', top: 48, right: 16 },
+  statusToggle: { flexDirection: 'row', gap: 8 },
+  statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.background },
+  statusBtnActive: { backgroundColor: Colors.warning + '18', borderColor: Colors.warning },
+  statusBtnLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  statusBtnLabelActive: { color: Colors.warning },
 });
