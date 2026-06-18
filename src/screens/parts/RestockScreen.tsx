@@ -4,7 +4,7 @@ import { Button, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
-import { recordPartsPurchase } from '../../repositories/partsRepository';
+import { recordPartsPurchase, RestockStatus } from '../../repositories/partsRepository';
 import { getAllSuppliers, createSupplier, Supplier } from '../../repositories/supplierRepository';
 import DatePickerField from '../../components/common/DatePickerField';
 import ImagePickerField from '../../components/common/ImagePickerField';
@@ -24,6 +24,7 @@ export default function RestockScreen({ route, navigation }: Props) {
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [status, setStatus] = useState<RestockStatus>('received');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { getAllSuppliers().then(setSupplierList).catch(() => {}); }, []);
@@ -46,6 +47,7 @@ export default function RestockScreen({ route, navigation }: Props) {
       notes: notes.trim() || undefined,
       image_uri: image || undefined,
       purchased_at: purchaseDate || undefined,
+      status,
     });
     setSaving(false);
     navigation.goBack();
@@ -140,6 +142,30 @@ export default function RestockScreen({ route, navigation }: Props) {
 
           <View style={styles.divider} />
 
+          {/* Status */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.warning }]} />
+              <Text style={styles.sectionLabel}>Status</Text>
+            </View>
+            <View style={styles.statusToggle}>
+              <TouchableOpacity
+                style={[styles.statusBtn, status === 'to_receive' && styles.statusBtnActive]}
+                onPress={() => setStatus('to_receive')}
+              >
+                <Text style={[styles.statusBtnLabel, status === 'to_receive' && styles.statusBtnLabelActive]}>To Receive</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.statusBtn, status === 'received' && styles.statusBtnActive]}
+                onPress={() => setStatus('received')}
+              >
+                <Text style={[styles.statusBtnLabel, status === 'received' && styles.statusBtnLabelActive]}>Received</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
           {/* Photo */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -180,4 +206,9 @@ const styles = StyleSheet.create({
   suggestionName: { fontSize: 14, fontWeight: '600', color: Colors.text },
   suggestionSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
   saveBtn: { borderRadius: 14 },
+  statusToggle: { flexDirection: 'row', gap: 8 },
+  statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.background },
+  statusBtnActive: { backgroundColor: Colors.warning + '18', borderColor: Colors.warning },
+  statusBtnLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  statusBtnLabelActive: { color: Colors.warning },
 });

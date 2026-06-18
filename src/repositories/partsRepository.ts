@@ -94,6 +94,8 @@ export async function adjustStock(partId: number, delta: number): Promise<void> 
   );
 }
 
+export type RestockStatus = 'to_receive' | 'received';
+
 export interface PartsPurchase {
   id: number;
   part_id: number;
@@ -105,6 +107,7 @@ export interface PartsPurchase {
   notes: string | null;
   image_uri: string | null;
   purchased_at: string;
+  status: RestockStatus;
   created_at: string;
 }
 
@@ -116,18 +119,43 @@ export async function recordPartsPurchase(input: {
   notes?: string;
   image_uri?: string;
   purchased_at?: string;
+  status?: RestockStatus;
 }): Promise<void> {
   const db = await getDB();
   const purchased_at = input.purchased_at || new Date().toISOString().split('T')[0];
+  const status = input.status ?? 'received';
   await db.runAsync(
-    `INSERT INTO parts_purchases (part_id, quantity, cost_price, supplier_name, notes, image_uri, purchased_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [input.part_id, input.quantity, input.cost_price, input.supplier_name ?? null, input.notes ?? null, input.image_uri ?? null, purchased_at]
+    `INSERT INTO parts_purchases (part_id, quantity, cost_price, supplier_name, notes, image_uri, purchased_at, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [input.part_id, input.quantity, input.cost_price, input.supplier_name ?? null, input.notes ?? null, input.image_uri ?? null, purchased_at, status]
   );
-  await adjustStock(input.part_id, input.quantity);
+  // Stock is only added once the order has actually arrived.
+  if (status === 'received') {
+    await adjustStock(input.part_id, input.quantity);
+  }
   // Always keep the part's cost_price in sync with the latest purchase
   const now = new Date().toISOString();
   await db.runAsync('UPDATE parts SET cost_price = ?, updated_at = ? WHERE id = ?', [input.cost_price, now, input.part_id]);
+}
+
+export async function updatePartsPurchaseStatus(id: number, status: RestockStatus): Promise<void> {
+  const db = await getDB();
+  const purchase = await db.getFirstAsync<{ part_id: number; quantity: number; status: RestockStatus }>(
+    'SELECT part_id, quantity, status FROM parts_purchases WHERE id = ?',
+    [id]
+  );
+  if (!purchase || purchase.status === status) return;
+  await db.runAsync('UPDATE parts_purchases SET status = ? WHERE id = ?', [status, id]);
+  // Adjust on-hand stock to reflect the arrival/un-arrival of this order.
+  await adjustStock(purchase.part_id, status === 'received' ? purchase.quantity : -purchase.quantity);
+}
+
+export async function getPartIdsWithPendingRestock(): Promise<number[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ part_id: number }>(
+    `SELECT DISTINCT part_id FROM parts_purchases WHERE status = 'to_receive'`
+  );
+  return rows.map(r => r.part_id);
 }
 
 export async function getPartsPurchaseHistory(partId?: number): Promise<PartsPurchase[]> {

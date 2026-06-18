@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
-import { Part } from '../../repositories/partsRepository';
+import { Part, RestockStatus } from '../../repositories/partsRepository';
 import { getAllSuppliers, createSupplier, Supplier } from '../../repositories/supplierRepository';
 import DatePickerField from '../../components/common/DatePickerField';
 import ImagePickerField from '../../components/common/ImagePickerField';
@@ -39,6 +39,7 @@ export default function BulkRestockScreen({ route, navigation }: Props) {
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [status, setStatus] = useState<RestockStatus>('received');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { getAllSuppliers().then(setSupplierList).catch(() => {}); }, []);
@@ -72,6 +73,7 @@ export default function BulkRestockScreen({ route, navigation }: Props) {
         notes: notes.trim() || undefined,
         image_uri: image || undefined,
         purchased_at: purchaseDate || undefined,
+        status,
       }
     );
     setSaving(false);
@@ -175,6 +177,30 @@ export default function BulkRestockScreen({ route, navigation }: Props) {
           </View>
         </View>
 
+        {/* Status */}
+        <View style={styles.formCard}>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.warning }]} />
+              <Text style={styles.sectionLabel}>Status</Text>
+            </View>
+            <View style={styles.statusToggle}>
+              <TouchableOpacity
+                style={[styles.statusBtn, status === 'to_receive' && styles.statusBtnActive]}
+                onPress={() => setStatus('to_receive')}
+              >
+                <Text style={[styles.statusBtnLabel, status === 'to_receive' && styles.statusBtnLabelActive]}>To Receive</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.statusBtn, status === 'received' && styles.statusBtnActive]}
+                onPress={() => setStatus('received')}
+              >
+                <Text style={[styles.statusBtnLabel, status === 'received' && styles.statusBtnLabelActive]}>Received</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
         {/* Receipt */}
         <View style={styles.formCard}>
           <View style={styles.section}>
@@ -233,4 +259,9 @@ const styles = StyleSheet.create({
   grandLabel: { fontSize: 14, fontWeight: '800', color: Colors.text },
   grandVal: { fontSize: 22, fontWeight: '800', color: Colors.primary },
   saveBtn: { borderRadius: 14 },
+  statusToggle: { flexDirection: 'row', gap: 8 },
+  statusBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.background },
+  statusBtnActive: { backgroundColor: Colors.warning + '18', borderColor: Colors.warning },
+  statusBtnLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  statusBtnLabelActive: { color: Colors.warning },
 });

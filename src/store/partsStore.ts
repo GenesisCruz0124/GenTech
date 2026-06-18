@@ -12,6 +12,8 @@ import {
   getRepairParts,
   removeRepairPart,
   recordPartsPurchase,
+  updatePartsPurchaseStatus,
+  RestockStatus,
 } from '../repositories/partsRepository';
 
 interface PartsStore {
@@ -29,8 +31,9 @@ interface PartsStore {
   removeFromRepair: (repairPartId: number, partId: number, quantity: number) => Promise<void>;
   bulkRestock: (
     items: { part_id: number; quantity: number; cost_price: number }[],
-    shared: { supplier_name?: string; notes?: string; image_uri?: string; purchased_at?: string }
+    shared: { supplier_name?: string; notes?: string; image_uri?: string; purchased_at?: string; status?: RestockStatus }
   ) => Promise<void>;
+  setRestockStatus: (purchaseId: number, status: RestockStatus) => Promise<void>;
 }
 
 export const usePartsStore = create<PartsStore>((set, get) => ({
@@ -89,8 +92,14 @@ export const usePartsStore = create<PartsStore>((set, get) => ({
         notes: shared.notes,
         image_uri: shared.image_uri,
         purchased_at: shared.purchased_at,
+        status: shared.status,
       });
     }
+    await get().fetchParts();
+  },
+
+  setRestockStatus: async (purchaseId, status) => {
+    await updatePartsPurchaseStatus(purchaseId, status);
     await get().fetchParts();
   },
 }));

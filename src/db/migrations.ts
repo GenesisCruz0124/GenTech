@@ -1335,6 +1335,12 @@ const MIGRATIONS: Migration[] = [
       `INSERT OR IGNORE INTO issues (name) VALUES ('Black Screen of Death')`,
     ],
   },
+  {
+    version: 37,
+    statements: [
+      `ALTER TABLE parts_purchases ADD COLUMN status TEXT NOT NULL DEFAULT 'received'`,
+    ],
+  },
 ];
 
 export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {

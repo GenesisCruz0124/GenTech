@@ -8,7 +8,7 @@ import { useLayoutEffect } from 'react';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
-import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, getModelsWithActiveRepairs } from '../../repositories/partsRepository';
+import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, getModelsWithActiveRepairs, getPartIdsWithPendingRestock } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
 import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import ImagePickerField from '../../components/common/ImagePickerField';
@@ -29,7 +29,7 @@ export default function PartsListScreen() {
 
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterChipsVisible, setFilterChipsVisible] = useState(false);
-  type FilterType = 'in_stock' | 'low_stock' | 'display' | 'battery' | 'active_repairs';
+  type FilterType = 'in_stock' | 'low_stock' | 'display' | 'battery' | 'active_repairs' | 'to_receive';
   const [filters, setFilters] = useState<Set<FilterType>>(new Set());
 
   const toggleFilter = (key: FilterType) => {
@@ -40,6 +40,7 @@ export default function PartsListScreen() {
     });
   };
   const [activeRepairModels, setActiveRepairModels] = useState<string[]>([]);
+  const [pendingRestockPartIds, setPendingRestockPartIds] = useState<number[]>([]);
 
   // Bulk restock multi-select
   const [selectMode, setSelectMode] = useState(false);
@@ -124,13 +125,14 @@ export default function PartsListScreen() {
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<Part | null>(null);
 
-  const { removePart } = usePartsStore();
+  const { removePart, setRestockStatus } = usePartsStore();
 
   useFocusEffect(useCallback(() => {
     fetchParts();
     getAllCategories().then(setCategories);
     getAllDeviceBrands().then(setBrands);
     getModelsWithActiveRepairs().then(setActiveRepairModels).catch(() => {});
+    getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
     setSelectMode(false);
     setSelectedIds(new Set());
   }, []));
@@ -149,6 +151,15 @@ export default function PartsListScreen() {
     setHistoryTarget(part);
     const h = await getPartsPurchaseHistory(part.id);
     setHistory(h);
+  };
+
+  const handleToggleStatus = async (h: PartsPurchase) => {
+    await setRestockStatus(h.id, h.status === 'to_receive' ? 'received' : 'to_receive');
+    if (historyTarget) {
+      const refreshed = await getPartsPurchaseHistory(historyTarget.id);
+      setHistory(refreshed);
+    }
+    getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
   };
 
   const openEditPurchase = (p: PartsPurchase) => {
@@ -233,7 +244,10 @@ export default function PartsListScreen() {
     // Active Repairs is AND'd against the rest.
     const matchesActiveRepairs = !filters.has('active_repairs') || activeRepairModels.includes(p.name.toLowerCase().trim());
 
-    return matchesStock && matchesCategory && matchesActiveRepairs;
+    // To Receive (has a pending restock order) is AND'd against the rest.
+    const matchesToReceive = !filters.has('to_receive') || pendingRestockPartIds.includes(p.id);
+
+    return matchesStock && matchesCategory && matchesActiveRepairs && matchesToReceive;
   });
 
   const FILTERS: { key: FilterType; label: string }[] = [
@@ -242,6 +256,7 @@ export default function PartsListScreen() {
     { key: 'display',        label: 'Display' },
     { key: 'battery',        label: 'Battery' },
     { key: 'active_repairs', label: 'Active Repairs' },
+    { key: 'to_receive',     label: 'To Receive' },
   ];
 
   return (
@@ -413,6 +428,14 @@ export default function PartsListScreen() {
                   <View style={styles.historyRow}>
                     <View style={styles.historyLeft}>
                       <Text style={styles.historyQty}>+{h.quantity} units @ {formatCurrency(h.cost_price)} each</Text>
+                      <TouchableOpacity
+                        style={[styles.statusTag, h.status === 'to_receive' ? styles.statusTagPending : styles.statusTagReceived]}
+                        onPress={() => handleToggleStatus(h)}
+                      >
+                        <Text style={[styles.statusTagText, h.status === 'to_receive' ? styles.statusTagTextPending : styles.statusTagTextReceived]}>
+                          {h.status === 'to_receive' ? 'To Receive' : 'Received'}
+                        </Text>
+                      </TouchableOpacity>
                       {h.supplier_name ? <Text style={styles.historySupplier}>📦 {h.supplier_name}</Text> : null}
                       <Text style={styles.historyDate}>{formatDateTime(h.purchased_at)}</Text>
                       {h.notes ? <Text style={styles.historyNote}>{h.notes}</Text> : null}
@@ -656,6 +679,12 @@ const styles = StyleSheet.create({
   historyLeft: { flex: 1, marginRight: 8 },
   historyQty: { fontSize: 14, fontWeight: '600', color: Colors.success },
   historySupplier: { fontSize: 13, color: Colors.primary, marginTop: 2 },
+  statusTag: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, marginTop: 4 },
+  statusTagPending: { backgroundColor: Colors.warning + '20' },
+  statusTagReceived: { backgroundColor: Colors.success + '18' },
+  statusTagText: { fontSize: 11, fontWeight: '700' },
+  statusTagTextPending: { color: Colors.warning },
+  statusTagTextReceived: { color: Colors.success },
   historyDate: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   historyNote: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
   historyRight: { alignItems: 'flex-end' },
