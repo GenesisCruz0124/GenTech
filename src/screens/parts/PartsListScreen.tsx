@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Badge, Button, Checkbox, Divider, FAB, IconButton, List, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { usePartsStore } from '../../store/partsStore';
 import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, deletePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, RestockStatus, getModelsWithActiveRepairs, getPartIdsWithPendingRestock } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
 import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
+import { getAllSuppliers, Supplier } from '../../repositories/supplierRepository';
 import ImagePickerField from '../../components/common/ImagePickerField';
 import DatePickerField from '../../components/common/DatePickerField';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -111,6 +112,11 @@ export default function PartsListScreen() {
   const [editImage, setEditImage] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState<RestockStatus>('received');
   const [editSaving, setEditSaving] = useState(false);
+  const [supplierList, setSupplierList] = useState<Supplier[]>([]);
+  const [editSupplierSuggestions, setEditSupplierSuggestions] = useState<Supplier[]>([]);
+  const [showEditSupplierSuggestions, setShowEditSupplierSuggestions] = useState(false);
+
+  useEffect(() => { getAllSuppliers().then(setSupplierList).catch(() => {}); }, []);
   const [deletePurchaseTarget, setDeletePurchaseTarget] = useState<PartsPurchase | null>(null);
 
   // Full-screen image viewer
@@ -564,8 +570,43 @@ export default function PartsListScreen() {
 
               <View style={styles.restockSection}>
                 <Text style={styles.restockSectionLabel}>Supplier</Text>
-                <TextInput value={editSupplier} onChangeText={setEditSupplier} mode="outlined"
-                  style={styles.restockInput} dense />
+                <TextInput
+                  value={editSupplier}
+                  onChangeText={(text) => {
+                    setEditSupplier(text);
+                    if (text.length >= 1) {
+                      const filtered = supplierList.filter(s =>
+                        s.name.toLowerCase().includes(text.toLowerCase())
+                      );
+                      setEditSupplierSuggestions(filtered);
+                      setShowEditSupplierSuggestions(filtered.length > 0);
+                    } else {
+                      setShowEditSupplierSuggestions(false);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (supplierList.length > 0) {
+                      setEditSupplierSuggestions(supplierList);
+                      setShowEditSupplierSuggestions(true);
+                    }
+                  }}
+                  mode="outlined"
+                  style={styles.restockInput} dense
+                />
+                {showEditSupplierSuggestions && (
+                  <View style={styles.suggestionBox}>
+                    {editSupplierSuggestions.slice(0, 5).map(s => (
+                      <TouchableOpacity
+                        key={s.id}
+                        style={styles.suggestionItem}
+                        onPress={() => { setEditSupplier(s.name); setShowEditSupplierSuggestions(false); }}
+                      >
+                        <Text style={styles.suggestionName}>{s.name}</Text>
+                        {s.phone ? <Text style={styles.suggestionSub}>{s.phone}</Text> : null}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
 
               <View style={styles.restockSection}>
@@ -727,6 +768,10 @@ const styles = StyleSheet.create({
   restockSection: { paddingHorizontal: 16, paddingTop: 12 },
   restockSectionLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
   restockInput: { backgroundColor: Colors.surface },
+  suggestionBox: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, marginTop: 4, elevation: 6, overflow: 'hidden' },
+  suggestionItem: { paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  suggestionName: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  suggestionSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
   restockStepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.primary + '40', overflow: 'hidden', alignSelf: 'flex-start' },
   restockStepBtn: { width: 46, height: 46, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary + '08' },
   restockStepperInput: { width: 64, textAlign: 'center', fontSize: 20, fontWeight: '800', backgroundColor: Colors.surface, height: 46 },
