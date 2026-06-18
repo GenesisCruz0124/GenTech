@@ -1384,4 +1384,22 @@ export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
       console.warn(`Migration v${migration.version} skipped:`, e?.message);
     }
   }
+
+  // Self-heal: some devices have a stale schema_migrations ledger (e.g. a
+  // version number was recorded as applied during earlier development
+  // before its statements were finalized). Verify critical columns by
+  // inspecting the actual table schema rather than trusting the ledger.
+  await ensureColumn(db, 'parts_purchases', 'status', `ALTER TABLE parts_purchases ADD COLUMN status TEXT NOT NULL DEFAULT 'received'`);
+}
+
+async function ensureColumn(db: SQLite.SQLiteDatabase, table: string, column: string, addColumnSql: string): Promise<void> {
+  try {
+    const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+    const hasColumn = columns.some(c => c.name === column);
+    if (!hasColumn) {
+      await db.execAsync(addColumnSql);
+    }
+  } catch (e: any) {
+    console.warn(`Failed to ensure column ${table}.${column}:`, e?.message);
+  }
 }
