@@ -29,8 +29,16 @@ export default function PartsListScreen() {
 
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterChipsVisible, setFilterChipsVisible] = useState(false);
-  type FilterType = 'all' | 'in_stock' | 'low_stock' | 'display' | 'battery' | 'active_repairs';
-  const [filter, setFilter] = useState<FilterType>('all');
+  type FilterType = 'in_stock' | 'low_stock' | 'display' | 'battery' | 'active_repairs';
+  const [filters, setFilters] = useState<Set<FilterType>>(new Set());
+
+  const toggleFilter = (key: FilterType) => {
+    setFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
   const [activeRepairModels, setActiveRepairModels] = useState<string[]>([]);
 
   // Bulk restock multi-select
@@ -53,7 +61,7 @@ export default function PartsListScreen() {
             <MaterialCommunityIcons name="clipboard-text-outline" size={20} color="#fff" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[hdrBtn, filterChipsVisible && filter !== 'all' && hdrBtnActive]}
+            style={[hdrBtn, filterChipsVisible && filters.size > 0 && hdrBtnActive]}
             onPress={() => setFilterChipsVisible((v: boolean) => !v)}
           >
             <MaterialCommunityIcons
@@ -77,7 +85,7 @@ export default function PartsListScreen() {
         </View>
       ),
     });
-  }, [navigation, filterChipsVisible, filter, searchVisible, selectMode]);
+  }, [navigation, filterChipsVisible, filters, searchVisible, selectMode]);
 
   // Restock modal
   const [restockTarget, setRestockTarget] = useState<Part | null>(null);
@@ -207,16 +215,28 @@ export default function PartsListScreen() {
   const filtered = parts.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
     if (!matchSearch) return false;
-    if (filter === 'in_stock') return p.quantity > 0;
-    if (filter === 'low_stock') return p.quantity <= p.low_stock_threshold;
-    if (filter === 'display') return p.category_name?.toLowerCase() === 'display';
-    if (filter === 'battery') return p.category_name?.toLowerCase() === 'battery';
-    if (filter === 'active_repairs') return activeRepairModels.includes(p.name.toLowerCase().trim());
-    return true;
+
+    // Stock-status chips (In Stock / Low Stock) are OR'd together.
+    const stockFilters: FilterType[] = ['in_stock', 'low_stock'];
+    const activeStockFilters = stockFilters.filter(f => filters.has(f));
+    const matchesStock = activeStockFilters.length === 0 || activeStockFilters.some(f =>
+      f === 'in_stock' ? p.quantity > 0 : p.quantity <= p.low_stock_threshold
+    );
+
+    // Category chips (Display / Battery) are OR'd together.
+    const categoryFilters: FilterType[] = ['display', 'battery'];
+    const activeCategoryFilters = categoryFilters.filter(f => filters.has(f));
+    const matchesCategory = activeCategoryFilters.length === 0 || activeCategoryFilters.some(f =>
+      p.category_name?.toLowerCase() === f
+    );
+
+    // Active Repairs is AND'd against the rest.
+    const matchesActiveRepairs = !filters.has('active_repairs') || activeRepairModels.includes(p.name.toLowerCase().trim());
+
+    return matchesStock && matchesCategory && matchesActiveRepairs;
   });
 
   const FILTERS: { key: FilterType; label: string }[] = [
-    { key: 'all',            label: 'All' },
     { key: 'in_stock',       label: 'In Stock' },
     { key: 'low_stock',      label: 'Low Stock' },
     { key: 'display',        label: 'Display' },
@@ -241,15 +261,20 @@ export default function PartsListScreen() {
 
       {/* Filter chips */}
       {filterChipsVisible && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
+        <TouchableOpacity
+          style={[styles.chip, filters.size === 0 && styles.chipActive]}
+          onPress={() => setFilters(new Set())}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.chipLabel, filters.size === 0 && styles.chipLabelActive]}>All</Text>
+        </TouchableOpacity>
         {FILTERS.map(f => {
-          const active = filter === f.key;
+          const active = filters.has(f.key);
           return (
             <TouchableOpacity
               key={f.key}
               style={[styles.chip, active && styles.chipActive]}
-              onPress={() => {
-                setFilter(f.key);
-              }}
+              onPress={() => toggleFilter(f.key)}
               activeOpacity={0.7}
             >
               <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{f.label}</Text>
