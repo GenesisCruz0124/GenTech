@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -31,26 +31,31 @@ export default function RestockScreen({ route, navigation }: Props) {
 
   const handleSave = async () => {
     setSaving(true);
-    const supplierName = supplier.trim();
-    // Auto-create supplier if a name was typed but doesn't exist in the list
-    if (supplierName) {
-      const exists = supplierList.some(s => s.name.toLowerCase() === supplierName.toLowerCase());
-      if (!exists) {
-        try { await createSupplier({ name: supplierName }); } catch {}
+    try {
+      const supplierName = supplier.trim();
+      // Auto-create supplier if a name was typed but doesn't exist in the list
+      if (supplierName) {
+        const exists = supplierList.some(s => s.name.toLowerCase() === supplierName.toLowerCase());
+        if (!exists) {
+          try { await createSupplier({ name: supplierName }); } catch {}
+        }
       }
+      await recordPartsPurchase({
+        part_id: partId,
+        quantity: parseInt(qty) || 1,
+        cost_price: parseFloat(cost) || 0,
+        supplier_name: supplierName || undefined,
+        notes: notes.trim() || undefined,
+        image_uri: image || undefined,
+        purchased_at: purchaseDate || undefined,
+        status,
+      });
+      navigation.goBack();
+    } catch (e: any) {
+      Alert.alert('Save Failed', e?.message ?? 'Could not save this restock. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    await recordPartsPurchase({
-      part_id: partId,
-      quantity: parseInt(qty) || 1,
-      cost_price: parseFloat(cost) || 0,
-      supplier_name: supplierName || undefined,
-      notes: notes.trim() || undefined,
-      image_uri: image || undefined,
-      purchased_at: purchaseDate || undefined,
-      status,
-    });
-    setSaving(false);
-    navigation.goBack();
   };
 
   return (

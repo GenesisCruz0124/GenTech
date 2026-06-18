@@ -126,6 +126,14 @@ export async function listRepairs(filter?: RepairFilter): Promise<RepairWithCust
   );
 }
 
+export async function getNextRepairNumber(): Promise<number> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ seq: number }>(
+    `SELECT seq FROM sqlite_sequence WHERE name = 'repairs'`
+  );
+  return (row?.seq ?? 0) + 1;
+}
+
 export async function updateRepairStatus(id: number, status: RepairStatus): Promise<void> {
   const db = await getDB();
   const now = new Date().toISOString();

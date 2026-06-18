@@ -25,6 +25,7 @@ import { RootStackParamList } from '../../navigation/types';
 import { useRepairStore } from '../../store/repairStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { getAllIssues, Issue } from '../../repositories/issueRepository';
+import { getNextRepairNumber } from '../../repositories/repairRepository';
 import { Customer, searchCustomers } from '../../repositories/customerRepository';
 import { Part, getAllParts, autoCreatePartIfNotExists } from '../../repositories/partsRepository';
 import { getLicenseStatus, getTrialCounts, TRIAL_LIMITS } from '../../services/licenseService';
@@ -144,6 +145,9 @@ export default function NewRepairScreen({ navigation, route }: Props) {
   const [dateRecorded, setDateRecorded] = useState(new Date().toISOString().split('T')[0]);
   const [hasWarranty, setHasWarranty] = useState(false);
   const [warrantyUntil, setWarrantyUntil] = useState('');
+  const [nextRepairNo, setNextRepairNo] = useState<number | null>(null);
+
+  useEffect(() => { getNextRepairNumber().then(setNextRepairNo).catch(() => {}); }, []);
 
   // Pre-populate from navigation params
   useEffect(() => {
@@ -319,6 +323,14 @@ export default function NewRepairScreen({ navigation, route }: Props) {
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={80}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+
+        {/* Repair number preview */}
+        {nextRepairNo != null && (
+          <View style={styles.repairNoBadge}>
+            <MaterialCommunityIcons name="ticket-confirmation-outline" size={16} color={Colors.primary} />
+            <Text style={styles.repairNoBadgeText}>RPN-{String(nextRepairNo).padStart(4, '0')}</Text>
+          </View>
+        )}
 
         {/* Main form card */}
         <View style={styles.formCard}>
@@ -549,6 +561,18 @@ export default function NewRepairScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: '#F2F4F7' },
   container: { padding: 14, paddingBottom: 120, gap: 12 },
+
+  repairNoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.primary + '12',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  repairNoBadgeText: { fontSize: 12, fontWeight: '800', color: Colors.primary, letterSpacing: 0.5 },
 
   // Main form card
   formCard: {

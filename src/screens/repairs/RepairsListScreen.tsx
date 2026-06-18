@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { FAB, Searchbar, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -25,6 +25,23 @@ const DATE_RANGES: { value: DateRange; label: string }[] = [
   { value: 'week',  label: 'This Week' },
   { value: 'month', label: 'This Month' },
 ];
+
+type SortBy = 'newest' | 'oldest' | 'status' | 'customer';
+
+const SORT_OPTIONS: { value: SortBy; label: string; icon: string }[] = [
+  { value: 'newest',   label: 'Newest First', icon: 'sort-calendar-descending' },
+  { value: 'oldest',   label: 'Oldest First', icon: 'sort-calendar-ascending' },
+  { value: 'status',   label: 'Status',       icon: 'sort-variant' },
+  { value: 'customer', label: 'Customer Name', icon: 'sort-alphabetical-ascending' },
+];
+
+const STATUS_SORT_ORDER: Record<RepairStatus, number> = {
+  pending: 0,
+  in_progress: 1,
+  ready: 2,
+  delivered: 3,
+  not_repaired: 4,
+};
 
 const STATUS_FILTERS: { value: FilterValue; label: string; color?: string }[] = [
   { value: '',             label: 'All' },
@@ -65,10 +82,27 @@ export default function RepairsListScreen() {
   const [dateRange, setDateRange] = useState<DateRange>('all');
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
+  const [sortVisible, setSortVisible] = useState(false);
+  const [sortBy, setSortBy] = useState<SortBy>('newest');
   useAnimatedTabTitle(navigation, 'Repairs');
   const { getTargetDateIso: _getTargetDateIso } = useFilterStore(); // kept for import but not used in repairs list
 
   const hasFilters = selectedFilters.size > 0;
+
+  const sortedRepairs = useMemo(() => {
+    const list = [...repairs];
+    switch (sortBy) {
+      case 'oldest':
+        return list.sort((a, b) => a.id - b.id);
+      case 'status':
+        return list.sort((a, b) => STATUS_SORT_ORDER[a.status] - STATUS_SORT_ORDER[b.status] || b.id - a.id);
+      case 'customer':
+        return list.sort((a, b) => a.customer_name.localeCompare(b.customer_name));
+      case 'newest':
+      default:
+        return list.sort((a, b) => b.id - a.id);
+    }
+  }, [repairs, sortBy]);
 
   const toggleFilter = (value: FilterValue) => {
     if (value === '') {
@@ -130,10 +164,16 @@ export default function RepairsListScreen() {
           <TouchableOpacity style={hdrBtn} onPress={() => setSearchVisible(v => !v)}>
             <MaterialCommunityIcons name="magnify" size={20} color="#fff" />
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[hdrBtn, sortVisible && hdrBtnActive]}
+            onPress={() => setSortVisible(v => !v)}
+          >
+            <MaterialCommunityIcons name="sort" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
       ),
     });
-  }, [navigation, filterVisible, selectedFilters, searchVisible]);
+  }, [navigation, filterVisible, selectedFilters, searchVisible, sortVisible]);
 
   // Skip flag: when arriving from dashboard, skip the stale useFocusEffect load
   const skipNextFocusLoad = useRef(false);
@@ -214,9 +254,29 @@ export default function RepairsListScreen() {
         </ScrollView>
       )}
 
+      {/* Sort options */}
+      {sortVisible && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
+          {SORT_OPTIONS.map(opt => {
+            const active = sortBy === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[styles.chip, styles.sortChip, active && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
+                onPress={() => setSortBy(opt.value)}
+                activeOpacity={0.75}
+              >
+                <MaterialCommunityIcons name={opt.icon as any} size={14} color={active ? '#fff' : Colors.textSecondary} />
+                <Text style={[styles.chipLabel, active && { color: '#fff' }]}>{opt.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {/* List */}
       <FlatList
-        data={repairs}
+        data={sortedRepairs}
         keyExtractor={r => String(r.id)}
         renderItem={({ item }) => (
           <RepairCard
@@ -293,6 +353,7 @@ const styles = StyleSheet.create({
     minHeight: 32,
   },
   chipLabel: { fontSize: 12, color: Colors.text, fontWeight: '600' },
+  sortChip: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   filterBadge: { position: 'absolute', top: -4, right: -5, backgroundColor: Colors.warning, borderRadius: 7, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
   filterBadgeText: { fontSize: 9, color: '#fff', fontWeight: '800' },
 

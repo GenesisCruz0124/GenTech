@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Badge, Button, Checkbox, Divider, FAB, IconButton, List, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -177,50 +177,65 @@ export default function PartsListScreen() {
   const handleSaveEditPurchase = async () => {
     if (!editPurchase) return;
     setEditSaving(true);
-    await updatePartsPurchase(editPurchase.id, {
-      quantity: parseInt(editQty) || editPurchase.quantity,
-      cost_price: parseFloat(editCost) || editPurchase.cost_price,
-      supplier_name: editSupplier.trim() || undefined,
-      notes: editNotes.trim() || undefined,
-      image_uri: editImage,
-      status: editStatus,
-    });
-    await syncCostPriceFromLastPurchase(editPurchase.part_id);
-    await fetchParts();
-    // Refresh history list
-    const h = await getPartsPurchaseHistory(editPurchase.part_id);
-    setHistory(h);
-    getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
-    setEditSaving(false);
-    setEditPurchase(null);
+    try {
+      await updatePartsPurchase(editPurchase.id, {
+        quantity: parseInt(editQty) || editPurchase.quantity,
+        cost_price: parseFloat(editCost) || editPurchase.cost_price,
+        supplier_name: editSupplier.trim() || undefined,
+        notes: editNotes.trim() || undefined,
+        image_uri: editImage,
+        status: editStatus,
+      });
+      await syncCostPriceFromLastPurchase(editPurchase.part_id);
+      await fetchParts();
+      // Refresh history list
+      const h = await getPartsPurchaseHistory(editPurchase.part_id);
+      setHistory(h);
+      getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
+      setEditPurchase(null);
+    } catch (e: any) {
+      Alert.alert('Save Failed', e?.message ?? 'Could not save changes. Please try again.');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleDeletePurchase = async () => {
     if (!deletePurchaseTarget) return;
     const partId = deletePurchaseTarget.part_id;
-    await deletePartsPurchase(deletePurchaseTarget.id);
-    await fetchParts();
-    const h = await getPartsPurchaseHistory(partId);
-    setHistory(h);
-    getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
-    setDeletePurchaseTarget(null);
+    try {
+      await deletePartsPurchase(deletePurchaseTarget.id);
+      await fetchParts();
+      const h = await getPartsPurchaseHistory(partId);
+      setHistory(h);
+      getPartIdsWithPendingRestock().then(setPendingRestockPartIds).catch(() => {});
+    } catch (e: any) {
+      Alert.alert('Delete Failed', e?.message ?? 'Could not delete this record. Please try again.');
+    } finally {
+      setDeletePurchaseTarget(null);
+    }
   };
 
   const handleRestock = async () => {
     if (!restockTarget || !restockQty.trim()) return;
     setRestockSaving(true);
-    await recordPartsPurchase({
-      part_id: restockTarget.id,
-      quantity: parseInt(restockQty),
-      cost_price: parseFloat(restockCost) || restockTarget.cost_price,
-      supplier_name: restockSupplier.trim() || undefined,
-      notes: restockNotes.trim() || undefined,
-      image_uri: restockImage || undefined,
-      purchased_at: restockDate || undefined,
-    });
-    await fetchParts();
-    setRestockSaving(false);
-    setRestockTarget(null);
+    try {
+      await recordPartsPurchase({
+        part_id: restockTarget.id,
+        quantity: parseInt(restockQty),
+        cost_price: parseFloat(restockCost) || restockTarget.cost_price,
+        supplier_name: restockSupplier.trim() || undefined,
+        notes: restockNotes.trim() || undefined,
+        image_uri: restockImage || undefined,
+        purchased_at: restockDate || undefined,
+      });
+      await fetchParts();
+      setRestockTarget(null);
+    } catch (e: any) {
+      Alert.alert('Restock Failed', e?.message ?? 'Could not save this restock. Please try again.');
+    } finally {
+      setRestockSaving(false);
+    }
   };
 
   const selectedCategory = categories.find(c => c.id === selectedCategoryId);
