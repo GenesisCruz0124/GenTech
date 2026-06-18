@@ -29,7 +29,7 @@ export default function PartsListScreen() {
 
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterChipsVisible, setFilterChipsVisible] = useState(false);
-  type FilterType = 'all' | 'in_stock' | 'low_stock' | 'active_repairs';
+  type FilterType = 'all' | 'in_stock' | 'low_stock' | 'display' | 'battery' | 'active_repairs';
   const [filter, setFilter] = useState<FilterType>('all');
   const [activeRepairModels, setActiveRepairModels] = useState<string[]>([]);
 
@@ -209,6 +209,8 @@ export default function PartsListScreen() {
     if (!matchSearch) return false;
     if (filter === 'in_stock') return p.quantity > 0;
     if (filter === 'low_stock') return p.quantity <= p.low_stock_threshold;
+    if (filter === 'display') return p.category_name?.toLowerCase() === 'display';
+    if (filter === 'battery') return p.category_name?.toLowerCase() === 'battery';
     if (filter === 'active_repairs') return activeRepairModels.includes(p.name.toLowerCase().trim());
     return true;
   });
@@ -217,6 +219,8 @@ export default function PartsListScreen() {
     { key: 'all',            label: 'All' },
     { key: 'in_stock',       label: 'In Stock' },
     { key: 'low_stock',      label: 'Low Stock' },
+    { key: 'display',        label: 'Display' },
+    { key: 'battery',        label: 'Battery' },
     { key: 'active_repairs', label: 'Active Repairs' },
   ];
 
