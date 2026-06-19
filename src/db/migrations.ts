@@ -1341,6 +1341,12 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE parts_purchases ADD COLUMN status TEXT NOT NULL DEFAULT 'received'`,
     ],
   },
+  {
+    version: 38,
+    statements: [
+      `ALTER TABLE parts_purchases ADD COLUMN received_at TEXT`,
+    ],
+  },
 ];
 
 export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
@@ -1390,6 +1396,7 @@ export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   // before its statements were finalized). Verify critical columns by
   // inspecting the actual table schema rather than trusting the ledger.
   await ensureColumn(db, 'parts_purchases', 'status', `ALTER TABLE parts_purchases ADD COLUMN status TEXT NOT NULL DEFAULT 'received'`);
+  await ensureColumn(db, 'parts_purchases', 'received_at', `ALTER TABLE parts_purchases ADD COLUMN received_at TEXT`);
 }
 
 async function ensureColumn(db: SQLite.SQLiteDatabase, table: string, column: string, addColumnSql: string): Promise<void> {

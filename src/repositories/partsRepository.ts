@@ -107,6 +107,7 @@ export interface PartsPurchase {
   notes: string | null;
   image_uri: string | null;
   purchased_at: string;
+  received_at: string | null;
   status: RestockStatus;
   created_at: string;
 }
@@ -119,15 +120,17 @@ export async function recordPartsPurchase(input: {
   notes?: string;
   image_uri?: string;
   purchased_at?: string;
+  received_at?: string;
   status?: RestockStatus;
 }): Promise<void> {
   const db = await getDB();
   const purchased_at = input.purchased_at || new Date().toISOString().split('T')[0];
   const status = input.status ?? 'received';
+  const received_at = status === 'received' ? (input.received_at || purchased_at) : null;
   await db.runAsync(
-    `INSERT INTO parts_purchases (part_id, quantity, cost_price, supplier_name, notes, image_uri, purchased_at, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [input.part_id, input.quantity, input.cost_price, input.supplier_name ?? null, input.notes ?? null, input.image_uri ?? null, purchased_at, status]
+    `INSERT INTO parts_purchases (part_id, quantity, cost_price, supplier_name, notes, image_uri, purchased_at, received_at, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [input.part_id, input.quantity, input.cost_price, input.supplier_name ?? null, input.notes ?? null, input.image_uri ?? null, purchased_at, received_at, status]
   );
   // Stock is only added once the order has actually arrived.
   if (status === 'received') {
@@ -145,7 +148,8 @@ export async function updatePartsPurchaseStatus(id: number, status: RestockStatu
     [id]
   );
   if (!purchase || purchase.status === status) return;
-  await db.runAsync('UPDATE parts_purchases SET status = ? WHERE id = ?', [status, id]);
+  const received_at = status === 'received' ? new Date().toISOString().split('T')[0] : null;
+  await db.runAsync('UPDATE parts_purchases SET status = ?, received_at = ? WHERE id = ?', [status, received_at, id]);
   // Adjust on-hand stock to reflect the arrival/un-arrival of this order.
   await adjustStock(purchase.part_id, status === 'received' ? purchase.quantity : -purchase.quantity);
 }
@@ -175,19 +179,23 @@ export async function getPartsPurchaseHistory(partId?: number): Promise<PartsPur
 
 export async function updatePartsPurchase(
   id: number,
-  data: { quantity: number; cost_price: number; supplier_name?: string; notes?: string; image_uri?: string | null; status?: RestockStatus }
+  data: { quantity: number; cost_price: number; supplier_name?: string; notes?: string; image_uri?: string | null; purchased_at?: string; received_at?: string | null; status?: RestockStatus }
 ): Promise<void> {
   const db = await getDB();
-  const existing = await db.getFirstAsync<{ part_id: number; quantity: number; status: RestockStatus }>(
-    'SELECT part_id, quantity, status FROM parts_purchases WHERE id = ?',
+  const existing = await db.getFirstAsync<{ part_id: number; quantity: number; status: RestockStatus; purchased_at: string; received_at: string | null }>(
+    'SELECT part_id, quantity, status, purchased_at, received_at FROM parts_purchases WHERE id = ?',
     [id]
   );
   if (!existing) return;
   const newStatus = data.status ?? existing.status;
+  const purchased_at = data.purchased_at ?? existing.purchased_at;
+  const received_at = newStatus === 'received'
+    ? (data.received_at ?? existing.received_at ?? purchased_at)
+    : null;
   await db.runAsync(
-    `UPDATE parts_purchases SET quantity = ?, cost_price = ?, supplier_name = ?, notes = ?, image_uri = ?, status = ?
+    `UPDATE parts_purchases SET quantity = ?, cost_price = ?, supplier_name = ?, notes = ?, image_uri = ?, purchased_at = ?, received_at = ?, status = ?
      WHERE id = ?`,
-    [data.quantity, data.cost_price, data.supplier_name ?? null, data.notes ?? null, data.image_uri ?? null, newStatus, id]
+    [data.quantity, data.cost_price, data.supplier_name ?? null, data.notes ?? null, data.image_uri ?? null, purchased_at, received_at, newStatus, id]
   );
   // Reconcile on-hand stock for any change in quantity or received status.
   const oldStockEffect = existing.status === 'received' ? existing.quantity : 0;

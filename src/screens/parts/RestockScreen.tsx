@@ -22,6 +22,7 @@ export default function RestockScreen({ route, navigation }: Props) {
   const [supplierSuggestions, setSupplierSuggestions] = useState<Supplier[]>([]);
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
+  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [status, setStatus] = useState<RestockStatus>('received');
@@ -48,6 +49,7 @@ export default function RestockScreen({ route, navigation }: Props) {
         notes: notes.trim() || undefined,
         image_uri: image || undefined,
         purchased_at: purchaseDate || undefined,
+        received_at: status === 'received' ? (receivedDate || undefined) : undefined,
         status,
       });
       navigation.goBack();
@@ -102,7 +104,7 @@ export default function RestockScreen({ route, navigation }: Props) {
               <View style={[styles.dot, { backgroundColor: Colors.info }]} />
               <Text style={styles.sectionLabel}>Purchase Details</Text>
             </View>
-            <DatePickerField label="Date of Purchase" value={purchaseDate} onChange={setPurchaseDate} maxDate={new Date()} />
+            <DatePickerField label="Date Ordered" value={purchaseDate} onChange={setPurchaseDate} maxDate={new Date()} />
             <TextInput
               label="Supplier (optional)"
               value={supplier}
@@ -167,6 +169,9 @@ export default function RestockScreen({ route, navigation }: Props) {
                 <Text style={[styles.statusBtnLabel, status === 'received' && styles.statusBtnLabelActive]}>Received</Text>
               </TouchableOpacity>
             </View>
+            {status === 'received' && (
+              <DatePickerField label="Date Received" value={receivedDate} onChange={setReceivedDate} minDate={new Date(purchaseDate)} maxDate={new Date()} />
+            )}
           </View>
 
           <View style={styles.divider} />

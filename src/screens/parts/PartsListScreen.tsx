@@ -111,6 +111,8 @@ export default function PartsListScreen() {
   const [editNotes, setEditNotes] = useState('');
   const [editImage, setEditImage] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState<RestockStatus>('received');
+  const [editPurchasedDate, setEditPurchasedDate] = useState('');
+  const [editReceivedDate, setEditReceivedDate] = useState('');
   const [editSaving, setEditSaving] = useState(false);
   const [supplierList, setSupplierList] = useState<Supplier[]>([]);
   const [editSupplierSuggestions, setEditSupplierSuggestions] = useState<Supplier[]>([]);
@@ -178,6 +180,8 @@ export default function PartsListScreen() {
     setEditNotes(p.notes ?? '');
     setEditImage(p.image_uri ?? null);
     setEditStatus(p.status);
+    setEditPurchasedDate(p.purchased_at);
+    setEditReceivedDate(p.received_at || p.purchased_at);
   };
 
   const handleSaveEditPurchase = async () => {
@@ -190,6 +194,8 @@ export default function PartsListScreen() {
         supplier_name: editSupplier.trim() || undefined,
         notes: editNotes.trim() || undefined,
         image_uri: editImage,
+        purchased_at: editPurchasedDate || undefined,
+        received_at: editStatus === 'received' ? (editReceivedDate || undefined) : undefined,
         status: editStatus,
       });
       await syncCostPriceFromLastPurchase(editPurchase.part_id);
@@ -474,7 +480,10 @@ export default function PartsListScreen() {
                         </Text>
                       </TouchableOpacity>
                       {h.supplier_name ? <Text style={styles.historySupplier}>📦 {h.supplier_name}</Text> : null}
-                      <Text style={styles.historyDate}>{formatDateTime(h.purchased_at)}</Text>
+                      <Text style={styles.historyDate}>Ordered: {formatDateTime(h.purchased_at)}</Text>
+                      {h.status === 'received' && h.received_at ? (
+                        <Text style={styles.historyDate}>Received: {formatDateTime(h.received_at)}</Text>
+                      ) : null}
                       {h.notes ? <Text style={styles.historyNote}>{h.notes}</Text> : null}
                       {h.image_uri ? (
                         <TouchableOpacity onPress={() => setViewImage(h.image_uri)} style={styles.thumbWrap}>
@@ -616,6 +625,11 @@ export default function PartsListScreen() {
               </View>
 
               <View style={styles.restockSection}>
+                <Text style={styles.restockSectionLabel}>Date Ordered</Text>
+                <DatePickerField label="Date Ordered" value={editPurchasedDate} onChange={setEditPurchasedDate} maxDate={new Date()} />
+              </View>
+
+              <View style={styles.restockSection}>
                 <Text style={styles.restockSectionLabel}>Status</Text>
                 <View style={styles.statusToggle}>
                   <TouchableOpacity
@@ -631,6 +645,9 @@ export default function PartsListScreen() {
                     <Text style={[styles.statusBtnLabel, editStatus === 'received' && styles.statusBtnLabelActive]}>Received</Text>
                   </TouchableOpacity>
                 </View>
+                {editStatus === 'received' && (
+                  <DatePickerField label="Date Received" value={editReceivedDate} onChange={setEditReceivedDate} minDate={new Date(editPurchasedDate)} maxDate={new Date()} />
+                )}
               </View>
 
               <View style={styles.restockSection}>
