@@ -102,24 +102,20 @@ export default function DashboardScreen() {
     return '';
   };
 
+  const getDateRange = useCallback((): { dateFrom?: string; dateTo?: string } => {
+    if (period === 'all_time') return {};
+    if (period === 'custom') return { dateFrom: customFrom, dateTo: customTo };
+    if (period === 'weekly') {
+      const { start, end } = getWeekRange(targetDate);
+      return { dateFrom: toIso(start), dateTo: toIso(end) };
+    }
+    return { dateFrom: toIso(targetDate) };
+  }, [period, targetDate, customFrom, customTo]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      let dateFrom: string | undefined;
-      let dateTo: string | undefined;
-      if (period === 'all_time') {
-        dateFrom = undefined;
-        dateTo = undefined;
-      } else if (period === 'custom') {
-        dateFrom = customFrom;
-        dateTo = customTo;
-      } else if (period === 'weekly') {
-        const { start, end } = getWeekRange(targetDate);
-        dateFrom = toIso(start);
-        dateTo = toIso(end);
-      } else {
-        dateFrom = toIso(targetDate);
-      }
+      const { dateFrom, dateTo } = getDateRange();
 
       const [s, daily] = await Promise.all([
         getTotalSummary(period, dateFrom, dateTo),
@@ -136,7 +132,7 @@ export default function DashboardScreen() {
     } finally {
       setLoading(false);
     }
-  }, [period, targetDate, customFrom, customTo]);
+  }, [period, targetDate, customFrom, customTo, getDateRange]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -232,14 +228,23 @@ export default function DashboardScreen() {
           { label: 'Total Paid',     value: formatCurrency(summary.total_paid),    color: Colors.success, icon: 'cash-check' },
           { label: 'For Collection', value: formatCurrency(summary.unpaid_amount), color: Colors.warning, icon: 'cash-clock' },
         ].map(m => (
-          <View key={m.label} style={[styles.metricCard, { borderTopColor: m.color }]}>
+          <TouchableOpacity
+            key={m.label}
+            style={[styles.metricCard, { borderTopColor: m.color }]}
+            activeOpacity={m.label === 'Total Expense' ? 0.7 : 1}
+            disabled={m.label !== 'Total Expense'}
+            onPress={() => {
+              const { dateFrom, dateTo } = getDateRange();
+              navigation.navigate('ExpenseDetail', { period, targetDate: dateFrom, dateTo });
+            }}
+          >
             <View style={styles.metricTop}>
               <MaterialCommunityIcons name={m.icon as any} size={15} color={m.color} />
               <Text style={[styles.metricLabel, { color: m.color }]}>{m.label}</Text>
             </View>
             <Text style={[styles.metricValue, { color: m.color }]}>{m.value}</Text>
             {(m as any).sub ? <Text style={styles.metricSub}>{(m as any).sub}</Text> : null}
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
 

@@ -136,6 +136,60 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
   return results;
 }
 
+export interface ExpenseItem {
+  id: string;
+  type: 'parts' | 'device';
+  date: string;
+  title: string;
+  subtitle: string | null;
+  amount: number;
+}
+
+export async function getExpenseDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<ExpenseItem[]> {
+  const db = await getDB();
+  const partsFilter = currentPeriodFilter(period, 'pp.purchased_at', targetDate ?? 'now', dateTo);
+  const deviceFilter = currentPeriodFilter(period, 'dp.purchased_at', targetDate ?? 'now', dateTo);
+
+  const [partsRows, deviceRows] = await Promise.all([
+    db.getAllAsync<{ id: number; date: string; part_name: string; supplier_name: string | null; quantity: number; amount: number }>(
+      `SELECT pp.id, pp.purchased_at as date, p.name as part_name, pp.supplier_name, pp.quantity,
+              pp.quantity * pp.cost_price as amount
+       FROM parts_purchases pp
+       JOIN parts p ON p.id = pp.part_id
+       WHERE ${partsFilter}
+       ORDER BY pp.purchased_at DESC`
+    ),
+    db.getAllAsync<{ id: number; date: string; device_name: string; device_model: string; amount: number }>(
+      `SELECT dp.id, dp.purchased_at as date, dp.device_name, dp.device_model, dp.purchase_price as amount
+       FROM device_purchases dp
+       WHERE ${deviceFilter}
+       ORDER BY dp.purchased_at DESC`
+    ),
+  ]);
+
+  const items: ExpenseItem[] = [
+    ...partsRows.map(r => ({
+      id: `parts-${r.id}`,
+      type: 'parts' as const,
+      date: r.date,
+      title: r.part_name,
+      subtitle: `Qty ${r.quantity}${r.supplier_name ? ` · ${r.supplier_name}` : ''}`,
+      amount: r.amount,
+    })),
+    ...deviceRows.map(r => ({
+      id: `device-${r.id}`,
+      type: 'device' as const,
+      date: r.date,
+      title: `${r.device_name} ${r.device_model}`.trim(),
+      subtitle: null,
+      amount: r.amount,
+    })),
+  ];
+
+  items.sort((a, b) => b.date.localeCompare(a.date));
+  return items;
+}
+
 export interface IssueCount {
   issue: string;
   count: number;

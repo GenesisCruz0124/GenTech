@@ -3,6 +3,8 @@ import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from '
 import { Divider, IconButton, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../navigation/types';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
 import { useFilterStore } from '../../store/filterStore';
 import {
@@ -31,8 +33,10 @@ const PERIODS: { value: ReportPeriod; label: string; icon: string }[] = [
 
 function toIso(d: Date): string { return d.toISOString().split('T')[0]; }
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 export default function ReportsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<Nav>();
   useAnimatedTabTitle(navigation, 'Reports');
 
   const { setPeriod: setGlobalPeriod, setTargetDate: setGlobalTargetDate } = useFilterStore();
@@ -149,14 +153,23 @@ export default function ReportsScreen() {
           { label: 'For Collection',value: formatCurrency(summary.unpaid_amount), color: Colors.warning, icon: 'cash-clock',
             sub: `${summary.unpaid_count} repair${summary.unpaid_count !== 1 ? 's' : ''}` },
         ].map(m => (
-          <View key={m.label} style={[styles.metricCard, { borderTopColor: m.color }]}>
+          <TouchableOpacity
+            key={m.label}
+            style={[styles.metricCard, { borderTopColor: m.color }]}
+            activeOpacity={m.label === 'Total Expense' ? 0.7 : 1}
+            disabled={m.label !== 'Total Expense'}
+            onPress={() => navigation.navigate('ExpenseDetail', {
+              period,
+              targetDate: period === 'all_time' ? undefined : toIso(targetDate),
+            })}
+          >
             <View style={styles.metricTop}>
               <MaterialCommunityIcons name={m.icon as any} size={16} color={m.color} />
               <Text style={[styles.metricLabel, { color: m.color }]}>{m.label}</Text>
             </View>
             <Text style={[styles.metricValue, { color: m.color }]}>{m.value}</Text>
             {m.sub ? <Text style={styles.metricSub}>{m.sub}</Text> : null}
-          </View>
+          </TouchableOpacity>
         ))}
       </View>
 
