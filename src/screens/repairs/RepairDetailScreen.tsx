@@ -806,7 +806,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
         )}
 
         {/* ── PAYMENT CARD ───────────────────────────────── */}
-        {(repair.status === 'delivered' || totalPaid > 0) && (() => {
+        {(() => {
           const totalOwed = repair.final_cost ?? repair.estimated_cost;
           const remaining = totalOwed - totalPaid;
           return (
