@@ -109,6 +109,16 @@ export default function DashboardScreen() {
       const { start, end } = getWeekRange(targetDate);
       return { dateFrom: toIso(start), dateTo: toIso(end) };
     }
+    if (period === 'monthly') {
+      const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const end = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+      return { dateFrom: toIso(start), dateTo: toIso(end) };
+    }
+    if (period === 'yearly') {
+      const start = new Date(targetDate.getFullYear(), 0, 1);
+      const end = new Date(targetDate.getFullYear(), 11, 31);
+      return { dateFrom: toIso(start), dateTo: toIso(end) };
+    }
     return { dateFrom: toIso(targetDate) };
   }, [period, targetDate, customFrom, customTo]);
 
