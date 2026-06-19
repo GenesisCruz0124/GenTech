@@ -26,6 +26,7 @@ import { useRepairStore } from '../../store/repairStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { getAllIssues, Issue } from '../../repositories/issueRepository';
 import { getNextRepairNumber } from '../../repositories/repairRepository';
+import { addRepairPayment, PAYMENT_MODES } from '../../repositories/repairPaymentRepository';
 import { Customer, searchCustomers } from '../../repositories/customerRepository';
 import { Part, getAllParts, autoCreatePartIfNotExists } from '../../repositories/partsRepository';
 import { getLicenseStatus, getTrialCounts, TRIAL_LIMITS } from '../../services/licenseService';
@@ -145,6 +146,9 @@ export default function NewRepairScreen({ navigation, route }: Props) {
   const [dateRecorded, setDateRecorded] = useState(new Date().toISOString().split('T')[0]);
   const [hasWarranty, setHasWarranty] = useState(false);
   const [warrantyUntil, setWarrantyUntil] = useState('');
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advancePaymentMode, setAdvancePaymentMode] = useState('Cash');
+  const [advanceNotes, setAdvanceNotes] = useState('');
   const [nextRepairNo, setNextRepairNo] = useState<number | null>(null);
 
   useEffect(() => { getNextRepairNumber().then(setNextRepairNo).catch(() => {}); }, []);
@@ -300,6 +304,15 @@ export default function NewRepairScreen({ navigation, route }: Props) {
       // Deduct parts from inventory
       for (const { part, qty } of selectedParts) {
         await addRepairPart(repairId, part.id, qty, part.selling_price);
+      }
+
+      // Record advance/down payment, if any
+      const advance = parseFloat(advanceAmount);
+      if (advance > 0) {
+        await addRepairPayment(repairId, advance, dateRecorded, {
+          paymentMode: advancePaymentMode,
+          notes: advanceNotes.trim() || undefined,
+        });
       }
 
       // Auto-create stock entry for the device model based on issue type
@@ -472,6 +485,47 @@ export default function NewRepairScreen({ navigation, route }: Props) {
               <TextInput label="Amount (₱) *" value={value} onChangeText={onChange} mode="outlined" style={styles.input} keyboardType="decimal-pad" error={!!errors.estimatedCost} />
             )} />
             <HelperText type="error" visible={!!errors.estimatedCost}>{errors.estimatedCost?.message}</HelperText>
+          </View>
+
+          <View style={styles.fieldDivider} />
+
+          {/* Advance Payment */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.success }]} />
+              <Text style={styles.fieldGroupLabel}>Advance Payment (optional)</Text>
+            </View>
+            <TextInput
+              label="Amount Received (₱)"
+              value={advanceAmount}
+              onChangeText={setAdvanceAmount}
+              mode="outlined"
+              style={styles.input}
+              keyboardType="decimal-pad"
+            />
+            {advanceAmount.trim().length > 0 && (
+              <>
+                <Text style={styles.modeLabel}>Mode of Payment</Text>
+                <View style={styles.modeChips}>
+                  {PAYMENT_MODES.map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      style={[styles.modeChip, advancePaymentMode === m && styles.modeChipActive]}
+                      onPress={() => setAdvancePaymentMode(m)}
+                    >
+                      <Text style={[styles.modeChipLabel, advancePaymentMode === m && styles.modeChipLabelActive]}>{m}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  label="Payment Notes (optional)"
+                  value={advanceNotes}
+                  onChangeText={setAdvanceNotes}
+                  mode="outlined"
+                  style={styles.input}
+                />
+              </>
+            )}
           </View>
 
           <View style={styles.fieldDivider} />
@@ -665,4 +719,11 @@ const styles = StyleSheet.create({
   warrantyBtnActive: { backgroundColor: Colors.success, borderColor: Colors.success },
   warrantyBtnNone: { backgroundColor: Colors.textSecondary, borderColor: Colors.textSecondary },
   warrantyBtnLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+
+  modeLabel: { fontSize: 10, fontWeight: '700', color: Colors.textSecondary, marginBottom: 6, marginTop: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  modeChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  modeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background },
+  modeChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  modeChipLabel: { fontSize: 12, color: Colors.text, fontWeight: '500' },
+  modeChipLabelActive: { color: '#fff', fontWeight: '700' },
 });
