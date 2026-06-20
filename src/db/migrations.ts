@@ -1347,6 +1347,12 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE parts_purchases ADD COLUMN received_at TEXT`,
     ],
   },
+  {
+    version: 39,
+    statements: [
+      `INSERT OR IGNORE INTO categories (name) VALUES ('Charging Board')`,
+    ],
+  },
 ];
 
 export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
