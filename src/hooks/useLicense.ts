@@ -3,7 +3,7 @@ import { getLicenseStatus, LicenseStatus } from '../services/licenseService';
 
 const DEFAULT: LicenseStatus = {
   isPro: false, isTrialActive: true, isExpired: false,
-  daysLeft: 1, hoursLeft: 24, trialStartedAt: null,
+  daysLeft: 1, hoursLeft: 24, trialStartedAt: null, deviceId: '',
 };
 
 // Shared refresh trigger so any screen can force a re-check after activation

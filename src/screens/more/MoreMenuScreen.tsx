@@ -140,6 +140,14 @@ export default function MoreMenuScreen() {
       <List.Section>
         <List.Subheader style={styles.subheader}>Settings</List.Subheader>
         <List.Item
+          title={license.isPro ? 'License — Pro Activated' : (license.isExpired ? 'License — Trial Expired' : 'License — Trial Active')}
+          description={license.isPro ? 'View your activation & device ID' : 'Activate Pro or view trial status'}
+          left={props => <List.Icon {...props} icon="crown" color="#F59E0B" />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('License')}
+          style={styles.item}
+        />
+        <List.Item
           title="Technician Information"
           description="Full name, phone, shop name, and location"
           left={props => <List.Icon {...props} icon="account-wrench-outline" color={Colors.primary} />}
