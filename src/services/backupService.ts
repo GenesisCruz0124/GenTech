@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import { Alert, BackHandler } from 'react-native';
@@ -60,8 +61,8 @@ export async function backupDatabase(onStep?: (msg: string) => void): Promise<vo
     const zip = new JSZip();
 
     step('Backing up database…');
-    const dbContent = await FileSystem.readAsStringAsync(DB_SOURCE, { encoding: FileSystem.EncodingType.Base64 });
-    zip.file('gentech.db', dbContent, { base64: true });
+    const dbBytes = await new File(DB_SOURCE).bytes();
+    zip.file('gentech.db', dbBytes);
     await getDB();
 
     // Add images from each directory
@@ -71,17 +72,17 @@ export async function backupDatabase(onStep?: (msg: string) => void): Promise<vo
       if (files.length > 0) step(`Backing up ${dirName} (${files.length} file${files.length !== 1 ? 's' : ''})…`);
       for (const file of files) {
         try {
-          const content = await FileSystem.readAsStringAsync(file.path, { encoding: FileSystem.EncodingType.Base64 });
-          zip.file(`images/${dirName}/${file.name}`, content, { base64: true });
+          const bytes = await new File(file.path).bytes();
+          zip.file(`images/${dirName}/${file.name}`, bytes);
         } catch {}
       }
     }
 
     step('Compressing…');
-    const zipContent = await zip.generateAsync({ type: 'base64' });
+    const zipBytes = await zip.generateAsync({ type: 'uint8array' });
     step('Saving backup file…');
     const backupPath = BACKUP_DIR + `repair_tracker_backup_${getTimestamp()}.zip`;
-    await FileSystem.writeAsStringAsync(backupPath, zipContent, { encoding: FileSystem.EncodingType.Base64 });
+    new File(backupPath).write(zipBytes);
 
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
@@ -167,18 +168,18 @@ export async function backupSelected(
       if (files.length > 0) step(`Backing up ${dirName} (${files.length} file${files.length !== 1 ? 's' : ''})…`);
       for (const file of files) {
         try {
-          const content = await FileSystem.readAsStringAsync(file.path, { encoding: FileSystem.EncodingType.Base64 });
-          zip.file(`images/${dirName}/${file.name}`, content, { base64: true });
+          const bytes = await new File(file.path).bytes();
+          zip.file(`images/${dirName}/${file.name}`, bytes);
         } catch {}
       }
     }
 
     step('Compressing…');
-    const zipContent = await zip.generateAsync({ type: 'base64' });
+    const zipBytes = await zip.generateAsync({ type: 'uint8array' });
     step('Saving backup file…');
     const filename = buildBackupFilename(selectedArr);
     const backupPath = BACKUP_DIR + filename;
-    await FileSystem.writeAsStringAsync(backupPath, zipContent, { encoding: FileSystem.EncodingType.Base64 });
+    new File(backupPath).write(zipBytes);
 
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
@@ -266,17 +267,17 @@ export async function restoreDatabase(): Promise<boolean> {
 
                 if (isZip) {
                   // Extract ZIP
-                  const zipContent = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
-                  const zip = await JSZip.loadAsync(zipContent, { base64: true });
+                  const zipBytes = await new File(asset.uri).bytes();
+                  const zip = await JSZip.loadAsync(zipBytes);
 
                   // Restore database
                   const dbFile = zip.file('gentech.db');
                   if (dbFile) {
-                    const dbContent = await dbFile.async('base64');
+                    const dbBytes = await dbFile.async('uint8array');
                     for (const path of [DB_SOURCE, DB_SOURCE + '-wal', DB_SOURCE + '-shm']) {
                       await FileSystem.deleteAsync(path, { idempotent: true });
                     }
-                    await FileSystem.writeAsStringAsync(DB_SOURCE, dbContent, { encoding: FileSystem.EncodingType.Base64 });
+                    new File(DB_SOURCE).write(dbBytes);
                   }
 
                   // Restore images
@@ -291,8 +292,8 @@ export async function restoreDatabase(): Promise<boolean> {
                     if (!destDirInfo.exists) {
                       await FileSystem.makeDirectoryAsync(destDir, { intermediates: true });
                     }
-                    const content = await zip.files[filePath].async('base64');
-                    await FileSystem.writeAsStringAsync(destDir + fileName, content, { encoding: FileSystem.EncodingType.Base64 });
+                    const bytes = await zip.files[filePath].async('uint8array');
+                    new File(destDir + fileName).write(bytes);
                   }
                 } else {
                   // Legacy .db restore
