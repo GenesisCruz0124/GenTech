@@ -17,6 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'BulkRestock'>;
 interface RestockItem {
   partId: number;
   name: string;
+  category: string | null;
   qty: string;
   cost: string;
 }
@@ -29,7 +30,7 @@ export default function BulkRestockScreen({ route, navigation }: Props) {
     partIds
       .map(id => parts.find(p => p.id === id))
       .filter((p): p is Part => !!p)
-      .map(p => ({ partId: p.id, name: p.name, qty: '1', cost: String(p.cost_price) }))
+      .map(p => ({ partId: p.id, name: p.name, category: p.category_name, qty: '1', cost: String(p.cost_price) }))
   );
 
   const [supplier, setSupplier] = useState('');
@@ -102,7 +103,10 @@ export default function BulkRestockScreen({ route, navigation }: Props) {
               items.map(item => (
                 <View key={item.partId} style={styles.itemRow}>
                   <View style={styles.itemHeader}>
-                    <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                      {item.category ? <Text style={styles.itemCategory} numberOfLines={1}>{item.category}</Text> : null}
+                    </View>
                     <TouchableOpacity onPress={() => removeItem(item.partId)} style={{ padding: 2 }}>
                       <MaterialCommunityIcons name="close" size={18} color={Colors.error} />
                     </TouchableOpacity>
@@ -247,7 +251,8 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', paddingVertical: 12, fontStyle: 'italic' },
   itemRow: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#F0F1F3' },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  itemName: { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.text, marginRight: 8 },
+  itemName: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  itemCategory: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
   itemControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   itemStepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.primary + '40', overflow: 'hidden' },
   itemStepBtn: { width: 34, height: 36, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary + '08' },
