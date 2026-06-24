@@ -24,6 +24,7 @@ export type RootStackParamList = {
   ShopeeSearch: { query?: string; storeUrl?: string; title?: string } | undefined;
   Quotation: undefined;
   ExpenseDetail: { period: import('../repositories/reportsRepository').ReportPeriod; targetDate?: string; dateTo?: string };
+  FinancialDetail: { kind: import('../repositories/reportsRepository').FinancialKind; period: import('../repositories/reportsRepository').ReportPeriod; targetDate?: string; dateTo?: string };
 };
 
 export type TabParamList = {

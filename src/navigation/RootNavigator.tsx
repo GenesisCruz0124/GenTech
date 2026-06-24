@@ -29,6 +29,7 @@ import PriceInquiryScreen from '../screens/suppliers/PriceInquiryScreen';
 import ShopeeSearchScreen from '../screens/suppliers/ShopeeSearchScreen';
 import QuotationScreen from '../screens/parts/QuotationScreen';
 import ExpenseDetailScreen from '../screens/reports/ExpenseDetailScreen';
+import FinancialDetailScreen from '../screens/reports/FinancialDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -71,6 +72,9 @@ export default function RootNavigator() {
         <Stack.Screen name="Quotation" component={QuotationScreen} options={{ title: 'Price Quotation' }} />
         <Stack.Screen name="ShopeeSearch" component={ShopeeSearchScreen} options={({ route }) => ({ title: (route.params as any)?.title ?? 'Shopee Search', headerStyle: { backgroundColor: '#EE4D2D' }, headerTintColor: '#fff' })} />
         <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} options={{ title: 'Expenses' }} />
+        <Stack.Screen name="FinancialDetail" component={FinancialDetailScreen} options={({ route }) => ({
+          title: { gross_income: 'Gross Income', net_income: 'Net Income', total_paid: 'Total Paid', for_collection: 'For Collection' }[route.params.kind],
+        })} />
       </Stack.Navigator>
     </NavigationContainer>
   );

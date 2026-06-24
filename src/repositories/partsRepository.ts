@@ -301,6 +301,19 @@ export async function getRepairParts(repairId: number): Promise<{ id: number; pa
   );
 }
 
+export async function searchCompatibleModels(query: string): Promise<string[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ compatible_model: string }>(
+    `SELECT DISTINCT compatible_model FROM parts WHERE compatible_model IS NOT NULL AND compatible_model != ''`
+  );
+  const names = new Set<string>();
+  for (const row of rows) {
+    row.compatible_model.split(',').map(s => s.trim()).filter(Boolean).forEach(name => names.add(name));
+  }
+  const q = query.toLowerCase();
+  return Array.from(names).filter(name => name.toLowerCase().includes(q)).sort();
+}
+
 export async function removeRepairPart(repairPartId: number, partId: number, quantity: number): Promise<void> {
   const db = await getDB();
   await db.runAsync('DELETE FROM repair_parts WHERE id = ?', [repairPartId]);

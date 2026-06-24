@@ -14,6 +14,7 @@ import {
   DailyRepairStat,
   ReportPeriod,
   TotalSummary,
+  FinancialKind,
 } from '../../repositories/reportsRepository';
 import { getSetting } from '../../repositories/settingsRepository';
 import { Colors } from '../../constants/colors';
@@ -157,6 +158,11 @@ export default function DashboardScreen() {
   const goRepairs = (filter: string) =>
     navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter } } as any);
 
+  const goFinancialDetail = (kind: FinancialKind) => {
+    const { dateFrom, dateTo } = getDateRange();
+    navigation.navigate('FinancialDetail', { kind, period, targetDate: dateFrom, dateTo });
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -217,7 +223,11 @@ export default function DashboardScreen() {
       )}
 
       {/* ── NET INCOME ROW ────────────────────────── */}
-      <View style={[styles.netIncomeRow, { borderLeftColor: isPositive ? Colors.success : Colors.error }]}>
+      <TouchableOpacity
+        style={[styles.netIncomeRow, { borderLeftColor: isPositive ? Colors.success : Colors.error }]}
+        activeOpacity={0.7}
+        onPress={() => goFinancialDetail('net_income')}
+      >
         <View style={[styles.netIncomeIcon, { backgroundColor: (isPositive ? Colors.success : Colors.error) + '18' }]}>
           <MaterialCommunityIcons name={isPositive ? 'trending-up' : 'trending-down'} size={20} color={isPositive ? Colors.success : Colors.error} />
         </View>
@@ -228,22 +238,22 @@ export default function DashboardScreen() {
         <Text style={[styles.netIncomeAmount, { color: isPositive ? Colors.success : Colors.error }]}>
           {formatCurrency(summary.net_income)}
         </Text>
-      </View>
+      </TouchableOpacity>
 
       {/* ── FINANCIAL METRICS 2×2 ─────────────────── */}
       <View style={styles.metricsGrid}>
         {[
-          { label: 'Gross Income',   value: formatCurrency(summary.gross_income),  color: Colors.primary, icon: 'trending-up' },
-          { label: 'Total Expense',  value: formatCurrency(summary.total_expense), color: Colors.error,   icon: 'trending-down' },
-          { label: 'Total Paid',     value: formatCurrency(summary.total_paid),    color: Colors.success, icon: 'cash-check' },
-          { label: 'For Collection', value: formatCurrency(summary.unpaid_amount), color: Colors.warning, icon: 'cash-clock' },
+          { label: 'Gross Income',   value: formatCurrency(summary.gross_income),  color: Colors.primary, icon: 'trending-up',   kind: 'gross_income' as FinancialKind },
+          { label: 'Total Expense',  value: formatCurrency(summary.total_expense), color: Colors.error,   icon: 'trending-down', kind: null },
+          { label: 'Total Paid',     value: formatCurrency(summary.total_paid),    color: Colors.success, icon: 'cash-check',    kind: 'total_paid' as FinancialKind },
+          { label: 'For Collection', value: formatCurrency(summary.unpaid_amount), color: Colors.warning, icon: 'cash-clock',     kind: 'for_collection' as FinancialKind },
         ].map(m => (
           <TouchableOpacity
             key={m.label}
             style={[styles.metricCard, { borderTopColor: m.color }]}
-            activeOpacity={m.label === 'Total Expense' ? 0.7 : 1}
-            disabled={m.label !== 'Total Expense'}
+            activeOpacity={0.7}
             onPress={() => {
+              if (m.kind) { goFinancialDetail(m.kind); return; }
               const { dateFrom, dateTo } = getDateRange();
               navigation.navigate('ExpenseDetail', { period, targetDate: dateFrom, dateTo });
             }}

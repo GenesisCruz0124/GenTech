@@ -191,6 +191,135 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   return items;
 }
 
+export type FinancialKind = 'gross_income' | 'net_income' | 'total_paid' | 'for_collection';
+
+export interface FinancialItem {
+  id: string;
+  kind: 'income' | 'expense';
+  type: 'repair' | 'device_sale' | 'payment' | 'unpaid' | 'parts' | 'device';
+  date: string;
+  title: string;
+  subtitle: string | null;
+  amount: number;
+}
+
+export async function getGrossIncomeDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
+  const db = await getDB();
+  const repairFilter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now', dateTo);
+  const saleFilter = currentPeriodFilter(period, 'ds.sold_at', targetDate ?? 'now', dateTo);
+
+  const [repairRows, saleRows] = await Promise.all([
+    db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
+      `SELECT r.id, r.created_at as date, r.device_model, c.name as customer_name, r.estimated_cost as amount
+       FROM repairs r
+       LEFT JOIN customers c ON c.id = r.customer_id
+       WHERE r.status = 'delivered' AND ${repairFilter}
+       ORDER BY r.created_at DESC`
+    ),
+    db.getAllAsync<{ id: number; date: string; device_name: string; device_model: string; amount: number }>(
+      `SELECT ds.id, ds.sold_at as date, ds.device_name, ds.device_model, ds.sale_price as amount
+       FROM device_sales ds WHERE ${saleFilter}
+       ORDER BY ds.sold_at DESC`
+    ),
+  ]);
+
+  const items: FinancialItem[] = [
+    ...repairRows.map(r => ({
+      id: `repair-${r.id}`,
+      kind: 'income' as const,
+      type: 'repair' as const,
+      date: r.date,
+      title: r.device_model,
+      subtitle: r.customer_name ? `Repair · ${r.customer_name}` : 'Repair',
+      amount: r.amount,
+    })),
+    ...saleRows.map(r => ({
+      id: `sale-${r.id}`,
+      kind: 'income' as const,
+      type: 'device_sale' as const,
+      date: r.date,
+      title: `${r.device_name} ${r.device_model}`.trim(),
+      subtitle: 'Device Sale',
+      amount: r.amount,
+    })),
+  ];
+
+  items.sort((a, b) => b.date.localeCompare(a.date));
+  return items;
+}
+
+export async function getTotalPaidDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
+  const db = await getDB();
+  const filter = currentPeriodFilter(period, 'rp.payment_date', targetDate ?? 'now', dateTo);
+
+  const rows = await db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
+    `SELECT rp.id, rp.payment_date as date, r.device_model, c.name as customer_name, rp.amount
+     FROM repair_payments rp
+     JOIN repairs r ON r.id = rp.repair_id
+     LEFT JOIN customers c ON c.id = r.customer_id
+     WHERE r.status = 'delivered' AND ${filter}
+     ORDER BY rp.payment_date DESC`
+  );
+
+  return rows.map(r => ({
+    id: `payment-${r.id}`,
+    kind: 'income' as const,
+    type: 'payment' as const,
+    date: r.date,
+    title: r.device_model,
+    subtitle: r.customer_name ? `Payment · ${r.customer_name}` : 'Payment',
+    amount: r.amount,
+  }));
+}
+
+export async function getForCollectionDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
+  const db = await getDB();
+  const filter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now', dateTo);
+
+  const rows = await db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
+    `SELECT r.id, r.created_at as date, r.device_model, c.name as customer_name,
+            COALESCE(r.final_cost, r.estimated_cost) -
+            COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0) as amount
+     FROM repairs r
+     LEFT JOIN customers c ON c.id = r.customer_id
+     WHERE r.is_paid = 0 AND r.status = 'delivered' AND ${filter}
+     ORDER BY r.created_at DESC`
+  );
+
+  return rows.map(r => ({
+    id: `unpaid-${r.id}`,
+    kind: 'income' as const,
+    type: 'unpaid' as const,
+    date: r.date,
+    title: r.device_model,
+    subtitle: r.customer_name ? `Unpaid · ${r.customer_name}` : 'Unpaid',
+    amount: r.amount,
+  }));
+}
+
+export async function getNetIncomeDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
+  const [incomeItems, expenseItems] = await Promise.all([
+    getGrossIncomeDetails(period, targetDate, dateTo),
+    getExpenseDetails(period, targetDate, dateTo),
+  ]);
+
+  const items: FinancialItem[] = [
+    ...incomeItems,
+    ...expenseItems.map(e => ({
+      id: e.id,
+      kind: 'expense' as const,
+      type: e.type,
+      date: e.date,
+      title: e.title,
+      subtitle: e.subtitle,
+      amount: e.amount,
+    })),
+  ];
+
+  items.sort((a, b) => b.date.localeCompare(a.date));
+  return items;
+}
+
 export interface IssueCount {
   issue: string;
   count: number;

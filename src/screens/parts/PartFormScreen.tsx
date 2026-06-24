@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
-import { getPartById } from '../../repositories/partsRepository';
+import { getPartById, searchCompatibleModels } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
 import { searchDeviceModels, DeviceModel } from '../../repositories/deviceModelRepository';
 import { Colors } from '../../constants/colors';
@@ -51,8 +51,8 @@ export default function PartFormScreen({ route, navigation }: Props) {
   const [modelSuggestions, setModelSuggestions] = useState<DeviceModel[]>([]);
   const [showModelSuggestions, setShowModelSuggestions] = useState(false);
 
-  // Compatible model autocomplete
-  const [compatModelSuggestions, setCompatModelSuggestions] = useState<DeviceModel[]>([]);
+  // Compatible model autocomplete — suggests from device models and from existing parts' compatible_model values
+  const [compatModelSuggestions, setCompatModelSuggestions] = useState<string[]>([]);
   const [showCompatModelSuggestions, setShowCompatModelSuggestions] = useState(false);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
@@ -215,8 +215,14 @@ export default function PartFormScreen({ route, navigation }: Props) {
                     onChange(text);
                     const lastSegment = text.split(',').pop()?.trim() ?? '';
                     if (lastSegment.length >= 2) {
-                      const r = await searchDeviceModels(lastSegment);
-                      const filtered = r.filter(m => !existingNames.includes(m.name.toLowerCase()));
+                      const [deviceModels, existingCompatModels] = await Promise.all([
+                        searchDeviceModels(lastSegment),
+                        searchCompatibleModels(lastSegment),
+                      ]);
+                      const names = new Set<string>();
+                      deviceModels.forEach(m => names.add(m.name));
+                      existingCompatModels.forEach(name => names.add(name));
+                      const filtered = Array.from(names).filter(name => !existingNames.includes(name.toLowerCase()));
                       setCompatModelSuggestions(filtered);
                       setShowCompatModelSuggestions(filtered.length > 0);
                     } else {
@@ -226,10 +232,9 @@ export default function PartFormScreen({ route, navigation }: Props) {
                     placeholder="e.g. Galaxy A22, A32, A52" />
                   {showCompatModelSuggestions && (
                     <View style={styles.suggestionBox}>
-                      {compatModelSuggestions.map(m => (
-                        <TouchableOpacity key={m.id} style={styles.suggestionItem} onPress={() => appendModel(m.name)}>
-                          <Text style={styles.suggestionText}>{m.name}</Text>
-                          {m.brand_name ? <Text style={styles.suggestionSub}>{m.brand_name}</Text> : null}
+                      {compatModelSuggestions.map(name => (
+                        <TouchableOpacity key={name} style={styles.suggestionItem} onPress={() => appendModel(name)}>
+                          <Text style={styles.suggestionText}>{name}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
