@@ -51,6 +51,10 @@ export default function PartFormScreen({ route, navigation }: Props) {
   const [modelSuggestions, setModelSuggestions] = useState<DeviceModel[]>([]);
   const [showModelSuggestions, setShowModelSuggestions] = useState(false);
 
+  // Compatible model autocomplete
+  const [compatModelSuggestions, setCompatModelSuggestions] = useState<DeviceModel[]>([]);
+  const [showCompatModelSuggestions, setShowCompatModelSuggestions] = useState(false);
+
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { name: '', quantity: '0', low_stock_threshold: '2', cost_price: '0', compatible_model: '' },
@@ -197,10 +201,42 @@ export default function PartFormScreen({ route, navigation }: Props) {
               <View style={[styles.dot, { backgroundColor: Colors.info }]} />
               <Text style={styles.groupLabel}>Compatible Model</Text>
             </View>
-            <Controller control={control} name="compatible_model" render={({ field: { onChange, value } }) => (
-              <TextInput label="Compatible Model (optional)" value={value} onChangeText={onChange} mode="outlined" style={styles.input}
-                placeholder="e.g. Galaxy A22, A32, A52" />
-            )} />
+            <Controller control={control} name="compatible_model" render={({ field: { onChange, value } }) => {
+              const existingNames = (value ?? '').split(',').slice(0, -1).map(s => s.trim().toLowerCase()).filter(Boolean);
+              const appendModel = (modelName: string) => {
+                const parts = (value ?? '').split(',');
+                parts[parts.length - 1] = ` ${modelName}`;
+                onChange(parts.map((p, i) => i === 0 ? p.trimStart() : p).join(',').replace(/^,\s*/, '') + ', ');
+                setShowCompatModelSuggestions(false);
+              };
+              return (
+                <>
+                  <TextInput label="Compatible Model (optional)" value={value} onChangeText={async (text) => {
+                    onChange(text);
+                    const lastSegment = text.split(',').pop()?.trim() ?? '';
+                    if (lastSegment.length >= 2) {
+                      const r = await searchDeviceModels(lastSegment);
+                      const filtered = r.filter(m => !existingNames.includes(m.name.toLowerCase()));
+                      setCompatModelSuggestions(filtered);
+                      setShowCompatModelSuggestions(filtered.length > 0);
+                    } else {
+                      setShowCompatModelSuggestions(false);
+                    }
+                  }} mode="outlined" style={styles.input}
+                    placeholder="e.g. Galaxy A22, A32, A52" />
+                  {showCompatModelSuggestions && (
+                    <View style={styles.suggestionBox}>
+                      {compatModelSuggestions.map(m => (
+                        <TouchableOpacity key={m.id} style={styles.suggestionItem} onPress={() => appendModel(m.name)}>
+                          <Text style={styles.suggestionText}>{m.name}</Text>
+                          {m.brand_name ? <Text style={styles.suggestionSub}>{m.brand_name}</Text> : null}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </>
+              );
+            }} />
           </View>
 
           <View style={styles.divider} />
