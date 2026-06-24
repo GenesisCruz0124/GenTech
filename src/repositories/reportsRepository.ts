@@ -151,11 +151,12 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   const deviceFilter = currentPeriodFilter(period, 'dp.purchased_at', targetDate ?? 'now', dateTo);
 
   const [partsRows, deviceRows] = await Promise.all([
-    db.getAllAsync<{ id: number; date: string; part_name: string; supplier_name: string | null; quantity: number; amount: number }>(
-      `SELECT pp.id, pp.purchased_at as date, p.name as part_name, pp.supplier_name, pp.quantity,
+    db.getAllAsync<{ id: number; date: string; part_name: string; category_name: string | null; supplier_name: string | null; quantity: number; amount: number }>(
+      `SELECT pp.id, pp.purchased_at as date, p.name as part_name, c.name as category_name, pp.supplier_name, pp.quantity,
               pp.quantity * pp.cost_price as amount
        FROM parts_purchases pp
        JOIN parts p ON p.id = pp.part_id
+       LEFT JOIN categories c ON c.id = p.category_id
        WHERE ${partsFilter}
        ORDER BY pp.purchased_at DESC`
     ),
@@ -173,7 +174,7 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
       type: 'parts' as const,
       date: r.date,
       title: r.part_name,
-      subtitle: `Qty ${r.quantity}${r.supplier_name ? ` · ${r.supplier_name}` : ''}`,
+      subtitle: `Qty ${r.quantity}${r.category_name ? ` · ${r.category_name}` : ''}${r.supplier_name ? ` · ${r.supplier_name}` : ''}`,
       amount: r.amount,
     })),
     ...deviceRows.map(r => ({
