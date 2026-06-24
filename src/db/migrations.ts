@@ -1353,6 +1353,12 @@ const MIGRATIONS: Migration[] = [
       `INSERT OR IGNORE INTO categories (name) VALUES ('Charging Board')`,
     ],
   },
+  {
+    version: 40,
+    statements: [
+      `ALTER TABLE parts ADD COLUMN compatible_model TEXT`,
+    ],
+  },
 ];
 
 export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
@@ -1403,6 +1409,7 @@ export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   // inspecting the actual table schema rather than trusting the ledger.
   await ensureColumn(db, 'parts_purchases', 'status', `ALTER TABLE parts_purchases ADD COLUMN status TEXT NOT NULL DEFAULT 'received'`);
   await ensureColumn(db, 'parts_purchases', 'received_at', `ALTER TABLE parts_purchases ADD COLUMN received_at TEXT`);
+  await ensureColumn(db, 'parts', 'compatible_model', `ALTER TABLE parts ADD COLUMN compatible_model TEXT`);
 }
 
 async function ensureColumn(db: SQLite.SQLiteDatabase, table: string, column: string, addColumnSql: string): Promise<void> {

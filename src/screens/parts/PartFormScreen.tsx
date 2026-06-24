@@ -22,6 +22,7 @@ const schema = z.object({
   low_stock_threshold: z.string().optional(),
   cost_price: z.string().min(1, 'Cost price is required'),
   selling_price: z.string().optional(),
+  compatible_model: z.string().optional(),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -52,7 +53,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', quantity: '0', low_stock_threshold: '2', cost_price: '0' },
+    defaultValues: { name: '', quantity: '0', low_stock_threshold: '2', cost_price: '0', compatible_model: '' },
   });
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
             quantity: String(p.quantity),
             low_stock_threshold: String(p.low_stock_threshold),
             cost_price: String(p.cost_price),
+            compatible_model: p.compatible_model ?? '',
           });
           setCategoryId(p.category_id);
           if (p.category_name) setCategoryInput(p.category_name);
@@ -86,6 +88,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
         selling_price: 0,
         category_id: categoryId ?? undefined,
         brand_id: brandId ?? undefined,
+        compatible_model: data.compatible_model?.trim() || undefined,
       };
       if (partId) {
         await editPart(partId, payload);
@@ -184,6 +187,20 @@ export default function PartFormScreen({ route, navigation }: Props) {
                 ))}
               </View>
             )}
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Compatible Model */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.dot, { backgroundColor: Colors.info }]} />
+              <Text style={styles.groupLabel}>Compatible Model</Text>
+            </View>
+            <Controller control={control} name="compatible_model" render={({ field: { onChange, value } }) => (
+              <TextInput label="Compatible Model (optional)" value={value} onChangeText={onChange} mode="outlined" style={styles.input}
+                placeholder="e.g. Galaxy A22, A32, A52" />
+            )} />
           </View>
 
           <View style={styles.divider} />

@@ -12,6 +12,7 @@ export interface Part {
   category_name: string | null;
   brand_id: number | null;
   brand_name: string | null;
+  compatible_model: string | null;
   total_purchase_value: number;
   created_at: string;
   updated_at: string;
@@ -26,13 +27,14 @@ export interface CreatePartInput {
   selling_price: number;
   category_id?: number;
   brand_id?: number;
+  compatible_model?: string;
 }
 
 export async function createPart(input: CreatePartInput): Promise<number> {
   const db = await getDB();
   const result = await db.runAsync(
-    `INSERT INTO parts (name, sku, quantity, low_stock_threshold, cost_price, selling_price, category_id, brand_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO parts (name, sku, quantity, low_stock_threshold, cost_price, selling_price, category_id, brand_id, compatible_model)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.name,
       input.sku ?? null,
@@ -42,6 +44,7 @@ export async function createPart(input: CreatePartInput): Promise<number> {
       input.selling_price,
       input.category_id ?? null,
       input.brand_id ?? null,
+      input.compatible_model ?? null,
     ]
   );
   return result.lastInsertRowId;
@@ -77,7 +80,7 @@ export async function getPartById(id: number): Promise<Part | null> {
 export async function updatePart(id: number, data: Partial<CreatePartInput>): Promise<void> {
   const db = await getDB();
   const now = new Date().toISOString();
-  const allowed = ['name', 'sku', 'quantity', 'low_stock_threshold', 'cost_price', 'selling_price', 'category_id', 'brand_id'];
+  const allowed = ['name', 'sku', 'quantity', 'low_stock_threshold', 'cost_price', 'selling_price', 'category_id', 'brand_id', 'compatible_model'];
   const entries = Object.entries(data).filter(([k]) => allowed.includes(k));
   if (!entries.length) return;
   const fields = entries.map(([k]) => `${k} = ?`).join(', ');

@@ -267,7 +267,11 @@ export default function PartsListScreen() {
   };
 
   const filtered = parts.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchSearch = !q
+      || p.name.toLowerCase().includes(q)
+      || (p.category_name?.toLowerCase().includes(q) ?? false)
+      || (p.compatible_model?.toLowerCase().includes(q) ?? false);
     if (!matchSearch) return false;
 
     // Stock-status chips (In Stock / Low Stock) are OR'd together.
@@ -388,6 +392,9 @@ export default function PartsListScreen() {
                       </View>
                     )}
                   </View>
+                  {item.compatible_model && (
+                    <Text style={styles.compatText} numberOfLines={1}>Fits: {item.compatible_model}</Text>
+                  )}
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Cost </Text>
                     <Text style={styles.priceVal}>{formatCurrency(item.cost_price)}</Text>
@@ -721,6 +728,7 @@ const styles = StyleSheet.create({
   catTagText: { fontSize: 11, color: Colors.secondary, fontWeight: '600' },
   lowTag: { backgroundColor: Colors.warning + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   lowTagText: { fontSize: 11, color: Colors.warning, fontWeight: '700' },
+  compatText: { fontSize: 11, color: Colors.textSecondary, fontStyle: 'italic', marginBottom: 2 },
   priceRow: { flexDirection: 'row', alignItems: 'center' },
   priceLabel: { fontSize: 12, color: Colors.textSecondary },
   priceVal: { fontSize: 13, fontWeight: '700', color: Colors.text },
