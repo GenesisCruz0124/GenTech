@@ -401,8 +401,10 @@ export async function getTotalSummary(period: ReportPeriod, targetDate?: string,
   const periodFilter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now', dateTo);
   const unpaidRow = await db.getFirstAsync<{ count: number; amount: number }>(
     `SELECT COUNT(*) as count,
-            COALESCE(SUM(COALESCE(final_cost, estimated_cost)), 0) -
-            COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0) as amount
+            COALESCE(SUM(
+              COALESCE(final_cost, estimated_cost) -
+              COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0)
+            ), 0) as amount
      FROM repairs r
      WHERE r.is_paid = 0 AND r.status = 'delivered'
        AND ${periodFilter}`
