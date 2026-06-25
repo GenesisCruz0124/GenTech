@@ -766,6 +766,19 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
               Mark as Not Repaired
             </Button>
           )}
+
+          {/* Revert to Pending when Not Repaired */}
+          {repair.status === 'not_repaired' && (
+            <Button mode="outlined" icon="undo" compact
+              onPress={() => Alert.alert('Revert to Pending', 'This will move the repair back to Pending. Parts already restored to inventory will not be re-deducted automatically.', [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Revert', onPress: () => advanceStatus(repairId, 'pending').then(load) },
+              ])}
+              style={[styles.secondaryBtn, { flex: undefined, borderColor: Colors.textSecondary }]}
+              textColor={Colors.textSecondary}>
+              Revert to Pending
+            </Button>
+          )}
         </View>
 
         {/* ── DELIVERY DATE ─────────────────────────────── */}
