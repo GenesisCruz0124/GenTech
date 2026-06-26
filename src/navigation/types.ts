@@ -25,6 +25,9 @@ export type RootStackParamList = {
   Quotation: undefined;
   ExpenseDetail: { period: import('../repositories/reportsRepository').ReportPeriod; targetDate?: string; dateTo?: string };
   FinancialDetail: { kind: import('../repositories/reportsRepository').FinancialKind; period: import('../repositories/reportsRepository').ReportPeriod; targetDate?: string; dateTo?: string };
+  DeviceSaleForm: { deviceModel?: string } | undefined;
+  DevicePurchaseForm: undefined;
+  DevicesList: undefined;
 };
 
 export type TabParamList = {

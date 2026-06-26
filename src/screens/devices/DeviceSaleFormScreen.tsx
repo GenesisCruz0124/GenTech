@@ -24,7 +24,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-export default function DeviceSaleFormScreen({ navigation }: Props) {
+export default function DeviceSaleFormScreen({ navigation, route }: Props) {
   const { addSale } = useDeviceStore();
   const { upsertByPhone } = useCustomerStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +40,7 @@ export default function DeviceSaleFormScreen({ navigation }: Props) {
 
   const { control, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { customerName: '', deviceModel: '', salePrice: '', notes: '' },
+    defaultValues: { customerName: '', deviceModel: route.params?.deviceModel ?? '', salePrice: '', notes: '' },
   });
 
   const onSubmit = async (data: FormData) => {

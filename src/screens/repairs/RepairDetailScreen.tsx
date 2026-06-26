@@ -754,6 +754,16 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
             </Button>
           )}
 
+          {/* Sell this unit (e.g. shop's own device, repaired then resold) */}
+          {repair.status === 'delivered' && (
+            <Button mode="outlined" icon="cash-multiple" compact
+              onPress={() => navigation.navigate('DeviceSaleForm', { deviceModel: repair.device_model })}
+              style={[styles.secondaryBtn, { flex: undefined, borderColor: Colors.primary }]}
+              textColor={Colors.primary}>
+              Sell This Unit
+            </Button>
+          )}
+
           {/* Not Repaired */}
           {repair.status !== 'delivered' && repair.status !== 'not_repaired' && (
             <Button mode="outlined" icon="close-circle-outline" compact

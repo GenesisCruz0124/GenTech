@@ -209,6 +209,14 @@ export default function MoreMenuScreen() {
           onPress={() => navigation.navigate('CategoryList')}
           style={styles.item}
         />
+        <List.Item
+          title="Devices"
+          description="View and manage device sales & purchases"
+          left={props => <List.Icon {...props} icon="cellphone-arrow-down" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('DevicesList')}
+          style={styles.item}
+        />
       </List.Section>
 
       <Divider />

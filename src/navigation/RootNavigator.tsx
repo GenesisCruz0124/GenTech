@@ -30,6 +30,9 @@ import ShopeeSearchScreen from '../screens/suppliers/ShopeeSearchScreen';
 import QuotationScreen from '../screens/parts/QuotationScreen';
 import ExpenseDetailScreen from '../screens/reports/ExpenseDetailScreen';
 import FinancialDetailScreen from '../screens/reports/FinancialDetailScreen';
+import DeviceSaleFormScreen from '../screens/devices/DeviceSaleFormScreen';
+import DevicePurchaseFormScreen from '../screens/devices/DevicePurchaseFormScreen';
+import DevicesScreen from '../screens/devices/DevicesScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -75,6 +78,9 @@ export default function RootNavigator() {
         <Stack.Screen name="FinancialDetail" component={FinancialDetailScreen} options={({ route }) => ({
           title: { gross_income: 'Gross Income', net_income: 'Net Income', total_paid: 'Total Paid', for_collection: 'For Collection' }[route.params.kind],
         })} />
+        <Stack.Screen name="DeviceSaleForm" component={DeviceSaleFormScreen} options={{ title: 'Sell Device' }} />
+        <Stack.Screen name="DevicePurchaseForm" component={DevicePurchaseFormScreen} options={{ title: 'Buy Device' }} />
+        <Stack.Screen name="DevicesList" component={DevicesScreen} options={{ title: 'Devices' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
