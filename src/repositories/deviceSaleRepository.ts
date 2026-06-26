@@ -8,6 +8,7 @@ export interface DeviceSale {
   imei: string | null;
   sale_price: number;
   notes: string | null;
+  image_uri: string | null;
   sold_at: string;
   created_at: string;
   customer_name?: string;

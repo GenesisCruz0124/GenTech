@@ -33,6 +33,7 @@ import FinancialDetailScreen from '../screens/reports/FinancialDetailScreen';
 import DeviceSaleFormScreen from '../screens/devices/DeviceSaleFormScreen';
 import DevicePurchaseFormScreen from '../screens/devices/DevicePurchaseFormScreen';
 import DevicesScreen from '../screens/devices/DevicesScreen';
+import DeviceSaleDetailScreen from '../screens/devices/DeviceSaleDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -81,6 +82,7 @@ export default function RootNavigator() {
         <Stack.Screen name="DeviceSaleForm" component={DeviceSaleFormScreen} options={{ title: 'Sell Device' }} />
         <Stack.Screen name="DevicePurchaseForm" component={DevicePurchaseFormScreen} options={{ title: 'Buy Device' }} />
         <Stack.Screen name="DevicesList" component={DevicesScreen} options={{ title: 'Devices' }} />
+        <Stack.Screen name="DeviceSaleDetail" component={DeviceSaleDetailScreen} options={{ title: 'Device Sale' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

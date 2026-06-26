@@ -1,11 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { FAB, List, SegmentedButtons, Text } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { useDeviceStore } from '../../store/deviceStore';
+import { getTotalPaid } from '../../repositories/deviceSalePaymentRepository';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -17,11 +18,19 @@ export default function DevicesScreen() {
   useAnimatedTabTitle(navigation, 'Devices');
   const { sales, purchases, isLoading, fetchSales, fetchPurchases } = useDeviceStore();
   const [tab, setTab] = useState('sales');
+  const [balances, setBalances] = useState<Record<number, number>>({});
 
   useFocusEffect(useCallback(() => {
     fetchSales();
     fetchPurchases();
   }, []));
+
+  useFocusEffect(useCallback(() => {
+    (async () => {
+      const entries = await Promise.all(sales.map(async s => [s.id, s.sale_price - await getTotalPaid(s.id)] as const));
+      setBalances(Object.fromEntries(entries));
+    })();
+  }, [sales]));
 
   const isSales = tab === 'sales';
   const data = isSales ? sales : purchases;
@@ -40,19 +49,31 @@ export default function DevicesScreen() {
       <FlatList
         data={data as any[]}
         keyExtractor={d => String(d.id)}
-        renderItem={({ item }) => (
-          <List.Item
-            title={`${item.device_name} ${item.device_model}`}
-            description={`${item.customer_name} · ${item.customer_phone}${item.imei ? ` · IMEI: ${item.imei}` : ''}`}
-            right={() => (
-              <View style={styles.right}>
-                <Text style={styles.price}>{formatCurrency(isSales ? item.sale_price : item.purchase_price)}</Text>
-                <Text style={styles.date}>{formatDate(isSales ? item.sold_at : item.purchased_at)}</Text>
-              </View>
-            )}
-            style={styles.item}
-          />
-        )}
+        renderItem={({ item }) => {
+          const balance = isSales ? balances[item.id] : undefined;
+          const row = (
+            <List.Item
+              title={`${item.device_name} ${item.device_model}`}
+              description={`${item.customer_name} · ${item.customer_phone}${item.imei ? ` · IMEI: ${item.imei}` : ''}`}
+              right={() => (
+                <View style={styles.right}>
+                  <Text style={styles.price}>{formatCurrency(isSales ? item.sale_price : item.purchase_price)}</Text>
+                  {balance !== undefined && balance > 0 ? (
+                    <Text style={styles.balance}>Balance {formatCurrency(balance)}</Text>
+                  ) : (
+                    <Text style={styles.date}>{formatDate(isSales ? item.sold_at : item.purchased_at)}</Text>
+                  )}
+                </View>
+              )}
+              style={styles.item}
+            />
+          );
+          return isSales ? (
+            <TouchableOpacity onPress={() => navigation.navigate('DeviceSaleDetail', { saleId: item.id })}>
+              {row}
+            </TouchableOpacity>
+          ) : row;
+        }}
         ListEmptyComponent={
           <EmptyState
             icon="cellphone"
@@ -81,6 +102,7 @@ const styles = StyleSheet.create({
   right: { justifyContent: 'center', alignItems: 'flex-end', paddingRight: 4 },
   price: { fontSize: 15, fontWeight: 'bold', color: Colors.primary },
   date: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  balance: { fontSize: 11, color: Colors.error, fontWeight: '700', marginTop: 2 },
   list: { paddingBottom: 80 },
   empty: { flex: 1 },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: Colors.primary },

@@ -28,6 +28,7 @@ export type RootStackParamList = {
   DeviceSaleForm: { deviceModel?: string } | undefined;
   DevicePurchaseForm: undefined;
   DevicesList: undefined;
+  DeviceSaleDetail: { saleId: number };
 };
 
 export type TabParamList = {

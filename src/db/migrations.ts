@@ -1359,6 +1359,21 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE parts ADD COLUMN compatible_model TEXT`,
     ],
   },
+  {
+    version: 41,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS device_sale_payments (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_sale_id INTEGER NOT NULL REFERENCES device_sales(id) ON DELETE CASCADE,
+        amount         REAL    NOT NULL,
+        payment_date   TEXT    NOT NULL DEFAULT (datetime('now')),
+        payment_mode   TEXT,
+        notes          TEXT,
+        image_uri      TEXT,
+        created_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+      )`,
+    ],
+  },
 ];
 
 export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
