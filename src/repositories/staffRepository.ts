@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { trackInsert, trackUpdate } from '../services/syncTrackHelpers';
 
 export interface Staff {
   id: number;
@@ -27,6 +28,7 @@ export async function createStaff(input: CreateStaffInput): Promise<number> {
     'INSERT INTO staff (name, role, phone) VALUES (?, ?, ?)',
     [input.name, input.role ?? null, input.phone ?? null]
   );
+  await trackInsert(db, 'staff', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -48,11 +50,13 @@ export async function updateStaff(id: number, data: Partial<CreateStaffInput>): 
   const fields = entries.map(([k]) => `${k} = ?`).join(', ');
   const values = [...entries.map(([, v]) => v), id];
   await db.runAsync(`UPDATE staff SET ${fields} WHERE id = ?`, values);
+  await trackUpdate(db, 'staff', id);
 }
 
 export async function deactivateStaff(id: number): Promise<void> {
   const db = await getDB();
   await db.runAsync('UPDATE staff SET is_active = 0 WHERE id = ?', [id]);
+  await trackUpdate(db, 'staff', id);
 }
 
 export async function getStaffPerformance(): Promise<StaffPerformance[]> {

@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { trackInsert, trackUpdate, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface CoTech {
   id: number;
@@ -31,6 +32,7 @@ export async function createCoTech(input: { name: string; phone?: string; addres
     'INSERT INTO co_techs (name, phone, address, email, facebook, photo_uri) VALUES (?, ?, ?, ?, ?, ?)',
     [input.name.trim(), input.phone ?? null, input.address ?? null, input.email ?? null, input.facebook ?? null, input.photo_uri ?? null]
   );
+  await trackInsert(db, 'co_techs', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -40,9 +42,12 @@ export async function updateCoTech(id: number, input: { name: string; phone?: st
     'UPDATE co_techs SET name = ?, phone = ?, address = ?, email = ?, facebook = ?, photo_uri = ? WHERE id = ?',
     [input.name.trim(), input.phone ?? null, input.address ?? null, input.email ?? null, input.facebook ?? null, input.photo_uri ?? null, id]
   );
+  await trackUpdate(db, 'co_techs', id);
 }
 
 export async function deleteCoTech(id: number): Promise<void> {
   const db = await getDB();
+  const uuid = await getUuid(db, 'co_techs', id);
   await db.runAsync('DELETE FROM co_techs WHERE id = ?', [id]);
+  await trackDelete('co_techs', uuid);
 }

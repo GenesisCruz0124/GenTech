@@ -1,5 +1,6 @@
 import { getDB } from '../db/database';
 import { RepairStatus } from '../constants/statusOptions';
+import { trackInsert, trackUpdate, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface Repair {
   id: number;
@@ -70,6 +71,7 @@ export async function createRepair(input: CreateRepairInput): Promise<number> {
       createdAt,
     ]
   );
+  await trackInsert(db, 'repairs', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -149,6 +151,7 @@ export async function updateRepairStatus(id: number, status: RepairStatus): Prom
     `UPDATE repairs SET status = ?, updated_at = ?${extra} WHERE id = ?`,
     params
   );
+  await trackUpdate(db, 'repairs', id);
 }
 
 export async function markNotRepaired(id: number): Promise<void> {
@@ -171,6 +174,7 @@ export async function markNotRepaired(id: number): Promise<void> {
     `UPDATE repairs SET status = 'not_repaired', is_paid = 0, updated_at = ? WHERE id = ?`,
     [now, id]
   );
+  await trackUpdate(db, 'repairs', id);
 }
 
 export async function deliverRepair(id: number, isPaid: boolean): Promise<void> {
@@ -180,6 +184,7 @@ export async function deliverRepair(id: number, isPaid: boolean): Promise<void> 
     `UPDATE repairs SET status = 'delivered', is_paid = ?, delivered_at = ?, updated_at = ? WHERE id = ?`,
     [isPaid ? 1 : 0, now, now, id]
   );
+  await trackUpdate(db, 'repairs', id);
 }
 
 export async function updateRepair(id: number, data: Partial<CreateRepairInput> & { final_cost?: number; image_uri?: string | null; customer_id?: number }): Promise<void> {
@@ -191,11 +196,14 @@ export async function updateRepair(id: number, data: Partial<CreateRepairInput> 
   const fields = entries.map(([k]) => `${k} = ?`).join(', ');
   const values = [...entries.map(([, v]) => v), now, id];
   await db.runAsync(`UPDATE repairs SET ${fields}, updated_at = ? WHERE id = ?`, values);
+  await trackUpdate(db, 'repairs', id);
 }
 
 export async function deleteRepair(id: number): Promise<void> {
   const db = await getDB();
+  const uuid = await getUuid(db, 'repairs', id);
   await db.runAsync('DELETE FROM repairs WHERE id = ?', [id]);
+  await trackDelete('repairs', uuid);
 }
 
 function dateRangeClause(dateFrom?: string, dateTo?: string): string {
@@ -234,6 +242,11 @@ export async function addRepairNote(repairId: number, content: string, staffId?:
     'INSERT INTO repair_notes (repair_id, staff_id, content) VALUES (?, ?, ?)',
     [repairId, staffId ?? null, content]
   );
+  const row = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM repair_notes WHERE repair_id = ? ORDER BY id DESC LIMIT 1',
+    [repairId]
+  );
+  if (row) await trackInsert(db, 'repair_notes', row.id);
 }
 
 export async function getRepairNotes(repairId: number): Promise<{ id: number; content: string; created_at: string; staff_name: string | null }[]> {

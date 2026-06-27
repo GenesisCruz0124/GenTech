@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { trackInsert, trackUpdate, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface Part {
   id: number;
@@ -47,6 +48,7 @@ export async function createPart(input: CreatePartInput): Promise<number> {
       input.compatible_model ?? null,
     ]
   );
+  await trackInsert(db, 'parts', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -86,6 +88,7 @@ export async function updatePart(id: number, data: Partial<CreatePartInput>): Pr
   const fields = entries.map(([k]) => `${k} = ?`).join(', ');
   const values = [...entries.map(([, v]) => v), now, id];
   await db.runAsync(`UPDATE parts SET ${fields}, updated_at = ? WHERE id = ?`, values);
+  await trackUpdate(db, 'parts', id);
 }
 
 export async function adjustStock(partId: number, delta: number): Promise<void> {
@@ -95,6 +98,7 @@ export async function adjustStock(partId: number, delta: number): Promise<void> 
     'UPDATE parts SET quantity = MAX(0, quantity + ?), updated_at = ? WHERE id = ?',
     [delta, now, partId]
   );
+  await trackUpdate(db, 'parts', partId);
 }
 
 export type RestockStatus = 'to_receive' | 'received';
@@ -130,11 +134,12 @@ export async function recordPartsPurchase(input: {
   const purchased_at = input.purchased_at || new Date().toISOString().split('T')[0];
   const status = input.status ?? 'received';
   const received_at = status === 'received' ? (input.received_at || purchased_at) : null;
-  await db.runAsync(
+  const result = await db.runAsync(
     `INSERT INTO parts_purchases (part_id, quantity, cost_price, supplier_name, notes, image_uri, purchased_at, received_at, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [input.part_id, input.quantity, input.cost_price, input.supplier_name ?? null, input.notes ?? null, input.image_uri ?? null, purchased_at, received_at, status]
   );
+  await trackInsert(db, 'parts_purchases', result.lastInsertRowId);
   // Stock is only added once the order has actually arrived.
   if (status === 'received') {
     await adjustStock(input.part_id, input.quantity);
@@ -142,6 +147,7 @@ export async function recordPartsPurchase(input: {
   // Always keep the part's cost_price in sync with the latest purchase
   const now = new Date().toISOString();
   await db.runAsync('UPDATE parts SET cost_price = ?, updated_at = ? WHERE id = ?', [input.cost_price, now, input.part_id]);
+  await trackUpdate(db, 'parts', input.part_id);
 }
 
 export async function updatePartsPurchaseStatus(id: number, status: RestockStatus): Promise<void> {
@@ -153,6 +159,7 @@ export async function updatePartsPurchaseStatus(id: number, status: RestockStatu
   if (!purchase || purchase.status === status) return;
   const received_at = status === 'received' ? new Date().toISOString().split('T')[0] : null;
   await db.runAsync('UPDATE parts_purchases SET status = ?, received_at = ? WHERE id = ?', [status, received_at, id]);
+  await trackUpdate(db, 'parts_purchases', id);
   // Adjust on-hand stock to reflect the arrival/un-arrival of this order.
   await adjustStock(purchase.part_id, status === 'received' ? purchase.quantity : -purchase.quantity);
 }
@@ -200,6 +207,7 @@ export async function updatePartsPurchase(
      WHERE id = ?`,
     [data.quantity, data.cost_price, data.supplier_name ?? null, data.notes ?? null, data.image_uri ?? null, purchased_at, received_at, newStatus, id]
   );
+  await trackUpdate(db, 'parts_purchases', id);
   // Reconcile on-hand stock for any change in quantity or received status.
   const oldStockEffect = existing.status === 'received' ? existing.quantity : 0;
   const newStockEffect = newStatus === 'received' ? data.quantity : 0;
@@ -216,7 +224,9 @@ export async function deletePartsPurchase(id: number): Promise<void> {
     [id]
   );
   if (!existing) return;
+  const uuid = await getUuid(db, 'parts_purchases', id);
   await db.runAsync('DELETE FROM parts_purchases WHERE id = ?', [id]);
+  await trackDelete('parts_purchases', uuid);
   // Reverse the stock that this purchase had contributed, if any.
   if (existing.status === 'received') {
     await adjustStock(existing.part_id, -existing.quantity);
@@ -232,6 +242,7 @@ export async function syncCostPriceFromLastPurchase(partId: number): Promise<voi
   if (latest) {
     const now = new Date().toISOString();
     await db.runAsync('UPDATE parts SET cost_price = ?, updated_at = ? WHERE id = ?', [latest.cost_price, now, partId]);
+    await trackUpdate(db, 'parts', partId);
   }
 }
 
@@ -251,11 +262,12 @@ export async function autoCreatePartIfNotExists(
     [modelName, cat.id]
   );
   if (existing) return;
-  await db.runAsync(
+  const result = await db.runAsync(
     `INSERT INTO parts (name, quantity, low_stock_threshold, cost_price, selling_price, category_id, brand_id)
      VALUES (?, 0, 1, 0, 0, ?, ?)`,
     [modelName.trim(), cat.id, brandId ?? null]
   );
+  await trackInsert(db, 'parts', result.lastInsertRowId);
 }
 
 export async function getModelsWithActiveRepairs(): Promise<string[]> {
@@ -269,9 +281,25 @@ export async function getModelsWithActiveRepairs(): Promise<string[]> {
 
 export async function deletePart(id: number): Promise<void> {
   const db = await getDB();
+  const repairPartRows = await db.getAllAsync<{ id: number; uuid: string | null }>(
+    'SELECT id, uuid FROM repair_parts WHERE part_id = ?',
+    [id]
+  );
+  const purchaseRows = await db.getAllAsync<{ id: number; uuid: string | null }>(
+    'SELECT id, uuid FROM parts_purchases WHERE part_id = ?',
+    [id]
+  );
+  const partUuid = await getUuid(db, 'parts', id);
   await db.runAsync('DELETE FROM repair_parts WHERE part_id = ?', [id]);
+  for (const row of repairPartRows) {
+    await trackDelete('repair_parts', row.uuid);
+  }
   await db.runAsync('DELETE FROM parts_purchases WHERE part_id = ?', [id]);
+  for (const row of purchaseRows) {
+    await trackDelete('parts_purchases', row.uuid);
+  }
   await db.runAsync('DELETE FROM parts WHERE id = ?', [id]);
+  await trackDelete('parts', partUuid);
 }
 
 export async function getLowStockParts(): Promise<Part[]> {
@@ -283,10 +311,11 @@ export async function getLowStockParts(): Promise<Part[]> {
 
 export async function addRepairPart(repairId: number, partId: number, quantity: number, unitPrice: number): Promise<void> {
   const db = await getDB();
-  await db.runAsync(
+  const result = await db.runAsync(
     'INSERT INTO repair_parts (repair_id, part_id, quantity, unit_price) VALUES (?, ?, ?, ?)',
     [repairId, partId, quantity, unitPrice]
   );
+  await trackInsert(db, 'repair_parts', result.lastInsertRowId);
   await adjustStock(partId, -quantity);
 }
 
@@ -316,6 +345,8 @@ export async function searchCompatibleModels(query: string): Promise<string[]> {
 
 export async function removeRepairPart(repairPartId: number, partId: number, quantity: number): Promise<void> {
   const db = await getDB();
+  const uuid = await getUuid(db, 'repair_parts', repairPartId);
   await db.runAsync('DELETE FROM repair_parts WHERE id = ?', [repairPartId]);
+  await trackDelete('repair_parts', uuid);
   await adjustStock(partId, quantity);
 }

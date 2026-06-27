@@ -1,5 +1,6 @@
 import { getDB } from '../db/database';
 import * as FileSystem from 'expo-file-system/legacy';
+import { trackInsert, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface RepairPayment {
   id: number;
@@ -33,11 +34,12 @@ export async function addRepairPayment(
   if (options?.imageUri) {
     storedUri = await savePaymentProof(options.imageUri);
   }
-  await db.runAsync(
+  const result = await db.runAsync(
     `INSERT INTO repair_payments (repair_id, amount, payment_date, notes, payment_mode, image_uri)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [repairId, amount, paymentDate, options?.notes ?? null, options?.paymentMode ?? null, storedUri]
   );
+  await trackInsert(db, 'repair_payments', result.lastInsertRowId);
   await syncPaymentStatus(repairId);
 }
 
@@ -63,7 +65,9 @@ export async function deleteRepairPayment(id: number, repairId: number): Promise
   const row = await db.getFirstAsync<{ image_uri: string | null }>(
     'SELECT image_uri FROM repair_payments WHERE id = ?', [id]
   );
+  const uuid = await getUuid(db, 'repair_payments', id);
   await db.runAsync('DELETE FROM repair_payments WHERE id = ?', [id]);
+  await trackDelete('repair_payments', uuid);
   if (row?.image_uri) {
     try { await FileSystem.deleteAsync(row.image_uri, { idempotent: true }); } catch {}
   }

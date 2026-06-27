@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { trackInsert, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface DeviceSale {
   id: number;
@@ -32,6 +33,7 @@ export async function createDeviceSale(input: CreateDeviceSaleInput): Promise<nu
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [input.customer_id, input.device_name, input.device_model, input.imei ?? null, input.sale_price, input.notes ?? null, input.image_uri ?? null]
   );
+  await trackInsert(db, 'device_sales', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -58,5 +60,7 @@ export async function getDeviceSaleById(id: number): Promise<DeviceSale | null> 
 
 export async function deleteDeviceSale(id: number): Promise<void> {
   const db = await getDB();
+  const uuid = await getUuid(db, 'device_sales', id);
   await db.runAsync('DELETE FROM device_sales WHERE id = ?', [id]);
+  await trackDelete('device_sales', uuid);
 }

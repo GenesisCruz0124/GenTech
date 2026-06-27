@@ -1,6 +1,7 @@
 import { getDB } from '../db/database';
 import * as FileSystem from 'expo-file-system/legacy';
 import { savePaymentProof, PAYMENT_MODES } from './repairPaymentRepository';
+import { trackInsert, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface DeviceSalePayment {
   id: number;
@@ -24,11 +25,12 @@ export async function addDeviceSalePayment(
   if (options?.imageUri) {
     storedUri = await savePaymentProof(options.imageUri);
   }
-  await db.runAsync(
+  const result = await db.runAsync(
     `INSERT INTO device_sale_payments (device_sale_id, amount, payment_date, notes, payment_mode, image_uri)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [saleId, amount, paymentDate, options?.notes ?? null, options?.paymentMode ?? null, storedUri]
   );
+  await trackInsert(db, 'device_sale_payments', result.lastInsertRowId);
 }
 
 export async function getDeviceSalePayments(saleId: number): Promise<DeviceSalePayment[]> {
@@ -53,7 +55,9 @@ export async function deleteDeviceSalePayment(id: number, saleId: number): Promi
   const row = await db.getFirstAsync<{ image_uri: string | null }>(
     'SELECT image_uri FROM device_sale_payments WHERE id = ?', [id]
   );
+  const uuid = await getUuid(db, 'device_sale_payments', id);
   await db.runAsync('DELETE FROM device_sale_payments WHERE id = ?', [id]);
+  await trackDelete('device_sale_payments', uuid);
   if (row?.image_uri) {
     try { await FileSystem.deleteAsync(row.image_uri, { idempotent: true }); } catch {}
   }

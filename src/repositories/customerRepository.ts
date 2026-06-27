@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { trackInsert, trackUpdate } from '../services/syncTrackHelpers';
 
 export interface Customer {
   id: number;
@@ -38,6 +39,7 @@ export async function upsertCustomerByPhone(input: CreateCustomerInput): Promise
         'UPDATE customers SET name = ?, email = ?, address = ? WHERE id = ?',
         [input.name, input.email ?? null, input.address ?? null, byPhone.id]
       );
+      await trackUpdate(db, 'customers', byPhone.id);
       return byPhone.id;
     }
   }
@@ -56,6 +58,7 @@ export async function upsertCustomerByPhone(input: CreateCustomerInput): Promise
         'UPDATE customers SET phone = ?, email = ?, address = ? WHERE id = ?',
         [input.phone, input.email ?? null, input.address ?? null, byName.id]
       );
+      await trackUpdate(db, 'customers', byName.id);
     }
     return byName.id;
   }
@@ -65,6 +68,7 @@ export async function upsertCustomerByPhone(input: CreateCustomerInput): Promise
     'INSERT INTO customers (name, phone, email, address) VALUES (?, ?, ?, ?)',
     [input.name, input.phone || '', input.email ?? null, input.address ?? null]
   );
+  await trackInsert(db, 'customers', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -149,6 +153,7 @@ export async function createCustomer(input: CreateCustomerInput): Promise<number
     'INSERT INTO customers (name, phone, email, address) VALUES (?, ?, ?, ?)',
     [input.name, input.phone, input.email ?? null, input.address ?? null]
   );
+  await trackInsert(db, 'customers', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -157,10 +162,12 @@ export async function updateCustomer(id: number, input: Partial<CreateCustomerIn
   const fields = Object.keys(input).map(k => `${k} = ?`).join(', ');
   const values = [...Object.values(input), id];
   await db.runAsync(`UPDATE customers SET ${fields} WHERE id = ?`, values);
+  await trackUpdate(db, 'customers', id);
 }
 
 export async function deleteCustomer(id: number): Promise<void> {
   const db = await getDB();
   // Soft delete — keeps customer_id references valid in repairs/devices/invoices
   await db.runAsync('UPDATE customers SET is_deleted = 1 WHERE id = ?', [id]);
+  await trackUpdate(db, 'customers', id);
 }

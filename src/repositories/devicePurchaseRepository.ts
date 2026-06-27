@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { trackInsert, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface DevicePurchase {
   id: number;
@@ -31,6 +32,7 @@ export async function createDevicePurchase(input: CreateDevicePurchaseInput): Pr
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [input.customer_id, input.device_name, input.device_model, input.imei ?? null, input.purchase_price, input.notes ?? null, input.image_uri ?? null]
   );
+  await trackInsert(db, 'device_purchases', result.lastInsertRowId);
   return result.lastInsertRowId;
 }
 
@@ -57,5 +59,7 @@ export async function getDevicePurchaseById(id: number): Promise<DevicePurchase 
 
 export async function deleteDevicePurchase(id: number): Promise<void> {
   const db = await getDB();
+  const uuid = await getUuid(db, 'device_purchases', id);
   await db.runAsync('DELETE FROM device_purchases WHERE id = ?', [id]);
+  await trackDelete('device_purchases', uuid);
 }

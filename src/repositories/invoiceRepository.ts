@@ -1,5 +1,6 @@
 import { getDB } from '../db/database';
 import { generateInvoiceNumber } from '../utils/formatters';
+import { trackInsert, trackUpdate } from '../services/syncTrackHelpers';
 
 export interface Invoice {
   id: number;
@@ -27,12 +28,14 @@ export async function createInvoice(data: {
     'INSERT INTO invoices (invoice_no, type, ref_id, customer_id, total_amount) VALUES (?, ?, ?, ?, ?)',
     [invoice_no, data.type, data.ref_id, data.customer_id, data.total_amount]
   );
+  await trackInsert(db, 'invoices', result.lastInsertRowId);
   return { id: result.lastInsertRowId, invoice_no };
 }
 
 export async function updateInvoicePdfUri(id: number, pdf_uri: string): Promise<void> {
   const db = await getDB();
   await db.runAsync('UPDATE invoices SET pdf_uri = ? WHERE id = ?', [pdf_uri, id]);
+  await trackUpdate(db, 'invoices', id);
 }
 
 export async function markInvoiceShared(id: number): Promise<void> {
@@ -41,6 +44,7 @@ export async function markInvoiceShared(id: number): Promise<void> {
     "UPDATE invoices SET shared_at = datetime('now') WHERE id = ?",
     [id]
   );
+  await trackUpdate(db, 'invoices', id);
 }
 
 export async function getAllInvoices(): Promise<Invoice[]> {

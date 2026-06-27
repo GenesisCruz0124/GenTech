@@ -171,6 +171,14 @@ export default function MoreMenuScreen() {
           onPress={handleExportSeed}
           style={styles.item}
         />}
+        <List.Item
+          title="Multi-Device Sync"
+          description="Keep this shop's data in sync across your devices"
+          left={props => <List.Icon {...props} icon="cloud-sync-outline" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('SyncSetup')}
+          style={styles.item}
+        />
       </List.Section>
 
       <Divider />

@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { trackInsert, trackUpdate, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface Supplier {
   id: number;
@@ -66,6 +67,7 @@ export async function createSupplier(input: { name: string; phone?: string; addr
   for (const [col, val] of extras) {
     try { await db.runAsync(`UPDATE suppliers SET ${col} = ? WHERE id = ?`, [val, id]); } catch {}
   }
+  await trackInsert(db, 'suppliers', id);
   return id;
 }
 
@@ -86,9 +88,12 @@ export async function updateSupplier(id: number, input: { name: string; phone?: 
       try { await db.runAsync(`UPDATE suppliers SET ${col} = ? WHERE id = ?`, [val, id]); } catch {}
     }
   }
+  await trackUpdate(db, 'suppliers', id);
 }
 
 export async function deleteSupplier(id: number): Promise<void> {
   const db = await getDB();
+  const uuid = await getUuid(db, 'suppliers', id);
   await db.runAsync('DELETE FROM suppliers WHERE id = ?', [id]);
+  await trackDelete('suppliers', uuid);
 }

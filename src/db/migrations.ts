@@ -1374,7 +1374,102 @@ const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 42,
+    statements: [
+      // Add updated_at to every syncable table that lacks one (repairs & parts already have it)
+      `ALTER TABLE customers ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE staff ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE repair_notes ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE repair_payments ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE repair_parts ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE repair_images ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE device_sales ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE device_purchases ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE device_sale_payments ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE parts_purchases ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE suppliers ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE co_techs ADD COLUMN updated_at TEXT`,
+      `ALTER TABLE invoices ADD COLUMN updated_at TEXT`,
+      // Backfill from created_at so existing rows have a usable LWW timestamp
+      `UPDATE customers SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE staff SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE repair_notes SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE repair_payments SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE repair_parts SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE repair_images SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE device_sales SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE device_purchases SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE device_sale_payments SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE parts_purchases SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE suppliers SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE co_techs SET updated_at = created_at WHERE updated_at IS NULL`,
+      `UPDATE invoices SET updated_at = created_at WHERE updated_at IS NULL`,
+    ],
+  },
+  {
+    version: 43,
+    statements: [
+      // Local queue of pending changes for cloud sync. payload carries the
+      // op type ('insert'|'update'|'delete') — the row itself is read fresh
+      // from its source table at push time, so it isn't duplicated here.
+      `CREATE TABLE IF NOT EXISTS sync_queue (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        table_name  TEXT    NOT NULL,
+        record_uuid TEXT    NOT NULL,
+        op          TEXT    NOT NULL,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+      )`,
+    ],
+  },
+  {
+    version: 44,
+    statements: [
+      // Stable cross-device id. Local INTEGER PRIMARY KEY stays the in-app
+      // FK/join mechanism; uuid is the Supabase-side primary key.
+      `ALTER TABLE customers ADD COLUMN uuid TEXT`,
+      `ALTER TABLE staff ADD COLUMN uuid TEXT`,
+      `ALTER TABLE repairs ADD COLUMN uuid TEXT`,
+      `ALTER TABLE repair_notes ADD COLUMN uuid TEXT`,
+      `ALTER TABLE repair_payments ADD COLUMN uuid TEXT`,
+      `ALTER TABLE repair_parts ADD COLUMN uuid TEXT`,
+      `ALTER TABLE repair_images ADD COLUMN uuid TEXT`,
+      `ALTER TABLE device_sales ADD COLUMN uuid TEXT`,
+      `ALTER TABLE device_purchases ADD COLUMN uuid TEXT`,
+      `ALTER TABLE device_sale_payments ADD COLUMN uuid TEXT`,
+      `ALTER TABLE parts ADD COLUMN uuid TEXT`,
+      `ALTER TABLE parts_purchases ADD COLUMN uuid TEXT`,
+      `ALTER TABLE suppliers ADD COLUMN uuid TEXT`,
+      `ALTER TABLE co_techs ADD COLUMN uuid TEXT`,
+      `ALTER TABLE invoices ADD COLUMN uuid TEXT`,
+      `UPDATE customers SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE staff SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE repairs SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE repair_notes SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE repair_payments SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE repair_parts SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE repair_images SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE device_sales SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE device_purchases SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE device_sale_payments SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE parts SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE parts_purchases SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE suppliers SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE co_techs SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+      `UPDATE invoices SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
+    ],
+  },
 ];
+
+// All tables that participate in multi-device sync (catalog/reference tables
+// like categories/device_brands/device_models/issues are seeded via
+// migrations and identical across devices, so they are excluded).
+export const SYNCABLE_TABLES = [
+  'customers', 'staff', 'repairs', 'repair_notes', 'repair_payments',
+  'repair_parts', 'repair_images', 'device_sales', 'device_purchases',
+  'device_sale_payments', 'parts', 'parts_purchases', 'suppliers',
+  'co_techs', 'invoices',
+] as const;
 
 export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.execAsync(
@@ -1425,6 +1520,14 @@ export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   await ensureColumn(db, 'parts_purchases', 'status', `ALTER TABLE parts_purchases ADD COLUMN status TEXT NOT NULL DEFAULT 'received'`);
   await ensureColumn(db, 'parts_purchases', 'received_at', `ALTER TABLE parts_purchases ADD COLUMN received_at TEXT`);
   await ensureColumn(db, 'parts', 'compatible_model', `ALTER TABLE parts ADD COLUMN compatible_model TEXT`);
+
+  for (const table of SYNCABLE_TABLES) {
+    await ensureColumn(db, table, 'updated_at', `ALTER TABLE ${table} ADD COLUMN updated_at TEXT`);
+    await ensureColumn(db, table, 'uuid', `ALTER TABLE ${table} ADD COLUMN uuid TEXT`);
+    try {
+      await db.runAsync(`UPDATE ${table} SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`);
+    } catch {}
+  }
 }
 
 async function ensureColumn(db: SQLite.SQLiteDatabase, table: string, column: string, addColumnSql: string): Promise<void> {

@@ -1,5 +1,6 @@
 import { getDB } from '../db/database';
 import * as FileSystem from 'expo-file-system/legacy';
+import { trackInsert, trackDelete, getUuid } from '../services/syncTrackHelpers';
 
 export interface RepairImage {
   id: number;
@@ -21,10 +22,11 @@ export async function saveRepairImage(repairId: number, tempUri: string): Promis
   const dest = IMAGE_DIR + filename;
   await FileSystem.copyAsync({ from: tempUri, to: dest });
   const db = await getDB();
-  await db.runAsync(
+  const result = await db.runAsync(
     'INSERT INTO repair_images (repair_id, image_uri) VALUES (?, ?)',
     [repairId, dest]
   );
+  await trackInsert(db, 'repair_images', result.lastInsertRowId);
   return dest;
 }
 
@@ -38,6 +40,8 @@ export async function getRepairImages(repairId: number): Promise<RepairImage[]> 
 
 export async function deleteRepairImage(id: number, imageUri: string): Promise<void> {
   const db = await getDB();
+  const uuid = await getUuid(db, 'repair_images', id);
   await db.runAsync('DELETE FROM repair_images WHERE id = ?', [id]);
+  await trackDelete('repair_images', uuid);
   try { await FileSystem.deleteAsync(imageUri, { idempotent: true }); } catch {}
 }
