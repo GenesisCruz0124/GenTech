@@ -7,6 +7,7 @@ import {
   FinancialKind,
   getGrossIncomeDetails,
   getNetIncomeDetails,
+  getNetIncomeCashDetails,
   getTotalPaidDetails,
   getForCollectionDetails,
 } from '../../repositories/reportsRepository';
@@ -46,6 +47,13 @@ const CONFIG: Record<FinancialKind, {
     icon: 'chart-line',
     emptySubtitle: 'No income or expense activity for this period',
     fetch: getNetIncomeDetails,
+  },
+  net_income_cash: {
+    title: 'Cash Net Income',
+    color: Colors.success,
+    icon: 'cash-multiple',
+    emptySubtitle: 'No payments or expenses for this period',
+    fetch: getNetIncomeCashDetails,
   },
   total_paid: {
     title: 'Total Paid',

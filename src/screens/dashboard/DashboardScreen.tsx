@@ -66,7 +66,7 @@ export default function DashboardScreen() {
   const [customFrom, setCustomFrom] = useState(() => toIso(getWeekRange(new Date()).start));
   const [customTo, setCustomTo] = useState(() => toIso(new Date()));
   const [summary, setSummary] = useState<TotalSummary>({
-    gross_income: 0, net_income: 0, total_revenue: 0,
+    gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0,
     total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0,
   });
   const [filterVisible, setFilterVisible] = useState(false);
@@ -227,7 +227,7 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* ── NET INCOME ROW ────────────────────────── */}
+      {/* ── NET INCOME ROWS ───────────────────────── */}
       <TouchableOpacity
         style={[styles.netIncomeRow, { borderLeftColor: isPositive ? Colors.success : Colors.error }]}
         activeOpacity={0.7}
@@ -244,6 +244,27 @@ export default function DashboardScreen() {
           {formatCurrency(summary.net_income)}
         </Text>
       </TouchableOpacity>
+      {(() => {
+        const cashPositive = summary.net_income_cash >= 0;
+        return (
+          <TouchableOpacity
+            style={[styles.netIncomeRow, { borderLeftColor: cashPositive ? Colors.success : Colors.error }]}
+            activeOpacity={0.7}
+            onPress={() => goFinancialDetail('net_income_cash')}
+          >
+            <View style={[styles.netIncomeIcon, { backgroundColor: (cashPositive ? Colors.success : Colors.error) + '18' }]}>
+              <MaterialCommunityIcons name={cashPositive ? 'cash-multiple' : 'cash-remove'} size={20} color={cashPositive ? Colors.success : Colors.error} />
+            </View>
+            <View style={styles.netIncomeBody}>
+              <Text style={styles.netIncomeLabel}>Cash Net Income</Text>
+              <Text style={styles.netIncomeSub}>Collected − Expense</Text>
+            </View>
+            <Text style={[styles.netIncomeAmount, { color: cashPositive ? Colors.success : Colors.error }]}>
+              {formatCurrency(summary.net_income_cash)}
+            </Text>
+          </TouchableOpacity>
+        );
+      })()}
 
       {/* ── FINANCIAL METRICS 2×2 ─────────────────── */}
       <View style={styles.metricsGrid}>

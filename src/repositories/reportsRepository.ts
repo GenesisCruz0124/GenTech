@@ -17,6 +17,7 @@ export interface PeriodReport {
 export interface TotalSummary {
   gross_income: number;
   net_income: number;
+  net_income_cash: number;
   total_revenue: number;
   total_expense: number;
   total_paid: number;
@@ -191,7 +192,7 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   return items;
 }
 
-export type FinancialKind = 'gross_income' | 'net_income' | 'total_paid' | 'for_collection';
+export type FinancialKind = 'gross_income' | 'net_income' | 'net_income_cash' | 'total_paid' | 'for_collection';
 
 export interface FinancialItem {
   id: string;
@@ -330,6 +331,29 @@ export interface BrandCount {
   count: number;
 }
 
+export async function getNetIncomeCashDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
+  const [paidItems, expenseItems] = await Promise.all([
+    getTotalPaidDetails(period, targetDate, dateTo),
+    getExpenseDetails(period, targetDate, dateTo),
+  ]);
+
+  const items: FinancialItem[] = [
+    ...paidItems,
+    ...expenseItems.map(e => ({
+      id: e.id,
+      kind: 'expense' as const,
+      type: e.type,
+      date: e.date,
+      title: e.title,
+      subtitle: e.subtitle,
+      amount: e.amount,
+    })),
+  ];
+
+  items.sort((a, b) => b.date.localeCompare(a.date));
+  return items;
+}
+
 export async function getRepairsByIssue(period: ReportPeriod, targetDate?: string): Promise<IssueCount[]> {
   const db = await getDB();
   const filter = currentPeriodFilter(period, 'created_at', targetDate ?? 'now');
@@ -412,19 +436,21 @@ export async function getTotalSummary(period: ReportPeriod, targetDate?: string,
 
   const base = rows.reduce<TotalSummary>(
     (acc, r) => ({
-      gross_income:  r2(acc.gross_income  + r.gross_income),
-      net_income:    r2(acc.net_income    + r.net_income),
-      total_revenue: r2(acc.total_revenue + r.gross_income),
-      total_expense: r2(acc.total_expense + r.total_expense),
-      total_paid:    r2(acc.total_paid    + r.total_paid),
-      unpaid_count:  0,
-      unpaid_amount: 0,
+      gross_income:    r2(acc.gross_income    + r.gross_income),
+      net_income:      r2(acc.net_income      + r.net_income),
+      net_income_cash: 0,
+      total_revenue:   r2(acc.total_revenue   + r.gross_income),
+      total_expense:   r2(acc.total_expense   + r.total_expense),
+      total_paid:      r2(acc.total_paid      + r.total_paid),
+      unpaid_count:    0,
+      unpaid_amount:   0,
     }),
-    { gross_income: 0, net_income: 0, total_revenue: 0, total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0 }
+    { gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0, total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0 }
   );
 
-  base.unpaid_count  = unpaidRow?.count ?? 0;
-  base.unpaid_amount = r2(unpaidRow?.amount ?? 0);
+  base.unpaid_count    = unpaidRow?.count ?? 0;
+  base.unpaid_amount   = r2(unpaidRow?.amount ?? 0);
+  base.net_income_cash = r2(base.total_paid - base.total_expense);
   return base;
 }
 

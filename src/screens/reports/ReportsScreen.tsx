@@ -56,7 +56,7 @@ export default function ReportsScreen() {
   const [period, setPeriod] = useState<ReportPeriod>('all_time');
   const [targetDate, setTargetDate] = useState(new Date());
   const [summary, setSummary] = useState<TotalSummary>({
-    gross_income: 0, net_income: 0, total_revenue: 0,
+    gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0,
     total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0,
   });
   const [rows, setRows] = useState<PeriodReport[]>([]);
@@ -103,6 +103,7 @@ export default function ReportsScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const isPositive = summary.net_income >= 0;
+  const isCashPositive = summary.net_income_cash >= 0;
 
   return (
     <ScrollView
@@ -137,11 +138,16 @@ export default function ReportsScreen() {
         </View>
       )}
 
-      {/* Net Income hero */}
+      {/* Net Income heroes */}
       <View style={[styles.heroCard, { backgroundColor: isPositive ? Colors.success : Colors.error }]}>
         <Text style={styles.heroLabel}>Net Income</Text>
         <Text style={styles.heroAmount}>{formatCurrency(summary.net_income)}</Text>
         <Text style={styles.heroSub}>Gross Income − Total Expense</Text>
+      </View>
+      <View style={[styles.heroCard, { backgroundColor: isCashPositive ? Colors.success : Colors.error }]}>
+        <Text style={styles.heroLabel}>Cash Net Income</Text>
+        <Text style={styles.heroAmount}>{formatCurrency(summary.net_income_cash)}</Text>
+        <Text style={styles.heroSub}>Collected − Total Expense</Text>
       </View>
 
       {/* Metrics 2×2 grid */}
