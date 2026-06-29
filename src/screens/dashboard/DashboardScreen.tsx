@@ -31,7 +31,12 @@ const PERIODS: { value: ReportPeriod; label: string; icon: string }[] = [
   { value: 'custom',   label: 'Custom',   icon: 'calendar-range' },
 ];
 
-function toIso(d: Date): string { return d.toISOString().split('T')[0]; }
+function toIso(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function fromIso(s: string): Date {
   const [y, m, d] = s.split('-').map(Number);
