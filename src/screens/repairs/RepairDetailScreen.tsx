@@ -853,7 +853,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                 </View>
               </View>
 
-              {repair.is_paid === 0 && (
+              {remaining > 0 && (
                 <View style={styles.unpaidBanner}>
                   <MaterialCommunityIcons name="alert-circle-outline" size={15} color={Colors.warning} />
                   <Text style={styles.unpaidText}>Payment not fully collected</Text>
@@ -881,7 +881,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                 </View>
               )}
 
-              {repair.is_paid === 0 && (
+              {remaining > 0 && (
                 <Button mode="outlined" icon="cash-plus" onPress={openPaymentModal}
                   style={[styles.primaryBtn, { marginTop: 12 }]}>
                   Add Payment
