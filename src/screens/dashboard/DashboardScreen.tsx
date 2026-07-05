@@ -227,42 +227,40 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* ── NET INCOME ROWS ───────────────────────── */}
-      <TouchableOpacity
-        style={[styles.netIncomeRow, { borderLeftColor: isPositive ? Colors.success : Colors.error }]}
-        activeOpacity={0.7}
-        onPress={() => goFinancialDetail('net_income')}
-      >
-        <View style={[styles.netIncomeIcon, { backgroundColor: (isPositive ? Colors.success : Colors.error) + '18' }]}>
-          <MaterialCommunityIcons name={isPositive ? 'trending-up' : 'trending-down'} size={20} color={isPositive ? Colors.success : Colors.error} />
-        </View>
-        <View style={styles.netIncomeBody}>
-          <Text style={styles.netIncomeLabel}>Net Income</Text>
-          <Text style={styles.netIncomeSub}>Gross − Expense</Text>
-        </View>
-        <Text style={[styles.netIncomeAmount, { color: isPositive ? Colors.success : Colors.error }]}>
-          {formatCurrency(summary.net_income)}
-        </Text>
-      </TouchableOpacity>
+      {/* ── NET INCOME ROW (side by side) ────────── */}
       {(() => {
         const cashPositive = summary.net_income_cash >= 0;
         return (
-          <TouchableOpacity
-            style={[styles.netIncomeRow, { borderLeftColor: cashPositive ? Colors.success : Colors.error }]}
-            activeOpacity={0.7}
-            onPress={() => goFinancialDetail('net_income_cash')}
-          >
-            <View style={[styles.netIncomeIcon, { backgroundColor: (cashPositive ? Colors.success : Colors.error) + '18' }]}>
-              <MaterialCommunityIcons name={cashPositive ? 'cash-multiple' : 'cash-remove'} size={20} color={cashPositive ? Colors.success : Colors.error} />
-            </View>
-            <View style={styles.netIncomeBody}>
+          <View style={styles.netIncomeRow}>
+            <TouchableOpacity
+              style={[styles.netIncomeCard, { borderLeftColor: isPositive ? Colors.success : Colors.error }]}
+              activeOpacity={0.7}
+              onPress={() => goFinancialDetail('net_income')}
+            >
+              <View style={[styles.netIncomeIcon, { backgroundColor: (isPositive ? Colors.success : Colors.error) + '18' }]}>
+                <MaterialCommunityIcons name={isPositive ? 'trending-up' : 'trending-down'} size={18} color={isPositive ? Colors.success : Colors.error} />
+              </View>
+              <Text style={styles.netIncomeLabel}>Net Income</Text>
+              <Text style={styles.netIncomeSub}>Gross − Expense</Text>
+              <Text style={[styles.netIncomeAmount, { color: isPositive ? Colors.success : Colors.error }]}>
+                {formatCurrency(summary.net_income)}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.netIncomeCard, { borderLeftColor: cashPositive ? Colors.success : Colors.error }]}
+              activeOpacity={0.7}
+              onPress={() => goFinancialDetail('net_income_cash')}
+            >
+              <View style={[styles.netIncomeIcon, { backgroundColor: (cashPositive ? Colors.success : Colors.error) + '18' }]}>
+                <MaterialCommunityIcons name={cashPositive ? 'cash-multiple' : 'cash-remove'} size={18} color={cashPositive ? Colors.success : Colors.error} />
+              </View>
               <Text style={styles.netIncomeLabel}>Cash Net Income</Text>
               <Text style={styles.netIncomeSub}>Collected − Expense</Text>
-            </View>
-            <Text style={[styles.netIncomeAmount, { color: cashPositive ? Colors.success : Colors.error }]}>
-              {formatCurrency(summary.net_income_cash)}
-            </Text>
-          </TouchableOpacity>
+              <Text style={[styles.netIncomeAmount, { color: cashPositive ? Colors.success : Colors.error }]}>
+                {formatCurrency(summary.net_income_cash)}
+              </Text>
+            </TouchableOpacity>
+          </View>
         );
       })()}
 
@@ -393,10 +391,13 @@ const styles = StyleSheet.create({
   customRow: { flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: Colors.border },
   customField: { flex: 1 },
 
-  // ── Net income compact row
+  // ── Net income side-by-side row
   netIncomeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 10,
+  },
+  netIncomeCard: {
+    flex: 1,
     backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 14,
@@ -406,19 +407,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
-    gap: 12,
   },
   netIncomeIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 8,
   },
-  netIncomeBody: { flex: 1 },
-  netIncomeLabel: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  netIncomeSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
-  netIncomeAmount: { fontSize: 22, fontWeight: '800' },
+  netIncomeLabel: { fontSize: 12, fontWeight: '700', color: Colors.text, marginTop: 2 },
+  netIncomeSub: { fontSize: 10, color: Colors.textSecondary, marginTop: 1, marginBottom: 6 },
+  netIncomeAmount: { fontSize: 18, fontWeight: '800' },
 
   // ── Financial metrics 2×2
   metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
