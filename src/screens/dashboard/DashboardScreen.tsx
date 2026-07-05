@@ -61,7 +61,7 @@ export default function DashboardScreen() {
   const { statusCounts, notPaidCount, fetchStatusCounts } = useRepairStore();
   const { setPeriod: setGlobalPeriod, setTargetDate: setGlobalTargetDate } = useFilterStore();
 
-  const [period, setPeriod] = useState<ReportPeriod>('all_time');
+  const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [targetDate, setTargetDate] = useState(new Date());
   const [customFrom, setCustomFrom] = useState(() => toIso(getWeekRange(new Date()).start));
   const [customTo, setCustomTo] = useState(() => toIso(new Date()));

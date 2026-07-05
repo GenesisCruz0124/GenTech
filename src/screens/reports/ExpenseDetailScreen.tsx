@@ -19,9 +19,14 @@ export default function ExpenseDetailScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const data = await getExpenseDetails(period, targetDate, dateTo);
-    setItems(data);
-    setLoading(false);
+    try {
+      const data = await getExpenseDetails(period, targetDate, dateTo);
+      setItems(data);
+    } catch (e) {
+      console.warn('ExpenseDetail load error:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [period, targetDate, dateTo]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));

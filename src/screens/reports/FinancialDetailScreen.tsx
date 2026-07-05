@@ -81,9 +81,14 @@ export default function FinancialDetailScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const data = await config.fetch(period, targetDate, dateTo);
-    setItems(data);
-    setLoading(false);
+    try {
+      const data = await config.fetch(period, targetDate, dateTo);
+      setItems(data);
+    } catch (e) {
+      console.warn('FinancialDetail load error:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [kind, period, targetDate, dateTo]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
