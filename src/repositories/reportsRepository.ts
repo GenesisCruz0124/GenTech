@@ -248,8 +248,10 @@ export async function getGrossIncomeDetails(period: ReportPeriod, targetDate?: s
   const saleFilter = currentPeriodFilter(period, 'ds.sold_at', targetDate ?? 'now', dateTo);
 
   const [repairRows, saleRows] = await Promise.all([
-    db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
-      `SELECT r.id, r.created_at as date, r.device_model, c.name as customer_name, r.estimated_cost as amount
+    db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number; parts_count: number; parts_total: number }>(
+      `SELECT r.id, r.created_at as date, r.device_model, c.name as customer_name, r.estimated_cost as amount,
+              (SELECT COUNT(*) FROM repair_parts rp WHERE rp.repair_id = r.id) as parts_count,
+              COALESCE((SELECT SUM(rp.unit_price * rp.quantity) FROM repair_parts rp WHERE rp.repair_id = r.id), 0) as parts_total
        FROM repairs r
        LEFT JOIN customers c ON c.id = r.customer_id
        WHERE r.status = 'delivered' AND ${repairFilter}
@@ -269,7 +271,9 @@ export async function getGrossIncomeDetails(period: ReportPeriod, targetDate?: s
       type: 'repair' as const,
       date: r.date,
       title: r.device_model,
-      subtitle: r.customer_name ? `Repair · ${r.customer_name}` : 'Repair',
+      subtitle: r.customer_name
+        ? `Repair · ${r.customer_name}${r.parts_count > 0 ? ` · ${r.parts_count} part${r.parts_count > 1 ? 's' : ''} used` : ''}`
+        : `Repair${r.parts_count > 0 ? ` · ${r.parts_count} part${r.parts_count > 1 ? 's' : ''} used` : ''}`,
       amount: r.amount,
     })),
     ...saleRows.map(r => ({
