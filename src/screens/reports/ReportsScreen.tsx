@@ -53,7 +53,7 @@ export default function ReportsScreen() {
       ),
     } as any);
   }, [navigation]);
-  const [period, setPeriod] = useState<ReportPeriod>('all_time');
+  const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [targetDate, setTargetDate] = useState(new Date());
   const [summary, setSummary] = useState<TotalSummary>({
     gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0,
