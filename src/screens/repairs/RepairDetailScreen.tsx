@@ -1107,7 +1107,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                 />
                 <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
                   {allPartsForEdit
-                    .filter(p => p.name.toLowerCase().includes(partPickerQuery.toLowerCase()))
+                    .filter(p => p.category_id !== null && p.name.toLowerCase().includes(partPickerQuery.toLowerCase()))
                     .map((p: any) => (
                       <TouchableOpacity key={p.id} style={styles.editPartPickerItem}
                         onPress={() => {

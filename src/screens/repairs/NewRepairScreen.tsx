@@ -194,6 +194,7 @@ export default function NewRepairScreen({ navigation, route }: Props) {
   const [allParts, setAllParts] = useState<Part[]>([]);
   const [selectedParts, setSelectedParts] = useState<{ part: Part; qty: number }[]>([]);
   const [partPickerVisible, setPartPickerVisible] = useState(false);
+  const [partPickerQuery, setPartPickerQuery] = useState('');
 
   useEffect(() => {
     getAllIssues().then(setIssues);
@@ -303,7 +304,7 @@ export default function NewRepairScreen({ navigation, route }: Props) {
       }
       // Deduct parts from inventory
       for (const { part, qty } of selectedParts) {
-        await addRepairPart(repairId, part.id, qty, part.selling_price);
+        await addRepairPart(repairId, part.id, qty, part.selling_price, part.cost_price ?? 0);
       }
 
       // Record advance/down payment, if any
@@ -581,6 +582,73 @@ export default function NewRepairScreen({ navigation, route }: Props) {
                   onChange={setWarrantyUntil}
                   minDate={new Date()}
                 />
+              </View>
+            )}
+          </View>
+
+          <View style={styles.fieldDivider} />
+
+          {/* Parts */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldGroupHeader}>
+              <View style={[styles.fieldGroupDot, { backgroundColor: Colors.warning }]} />
+              <Text style={styles.fieldGroupLabel}>Parts Used (optional)</Text>
+            </View>
+            {selectedParts.map(({ part, qty }) => (
+              <View key={part.id} style={styles.partRow}>
+                <View style={styles.partInfo}>
+                  <Text style={styles.partName}>{part.name}</Text>
+                  <Text style={styles.partMeta}>{part.category_name ?? ''} · ₱{part.selling_price}</Text>
+                </View>
+                <View style={styles.partQtyRow}>
+                  <TouchableOpacity onPress={() => setSelectedParts(p => p.map(x => x.part.id === part.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))}>
+                    <Text style={{ fontSize: 22, color: Colors.primary, paddingHorizontal: 4 }}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.partQty}>{qty}</Text>
+                  <TouchableOpacity onPress={() => setSelectedParts(p => p.map(x => x.part.id === part.id ? { ...x, qty: x.qty + 1 } : x))}>
+                    <Text style={{ fontSize: 22, color: Colors.primary, paddingHorizontal: 4 }}>+</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSelectedParts(p => p.filter(x => x.part.id !== part.id))} style={{ marginLeft: 6 }}>
+                    <Text style={{ color: Colors.error, fontSize: 16 }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+            <Button mode="outlined" icon="plus" compact
+              onPress={() => { setPartPickerVisible(v => !v); setPartPickerQuery(''); }}
+              style={styles.addPartBtn}>
+              {partPickerVisible ? 'Close' : 'Add Part'}
+            </Button>
+            {partPickerVisible && (
+              <View style={[styles.partPicker, { marginTop: 8, borderWidth: 1, borderColor: Colors.border }]}>
+                <TextInput
+                  mode="outlined"
+                  dense
+                  placeholder="Search parts..."
+                  value={partPickerQuery}
+                  onChangeText={setPartPickerQuery}
+                  style={{ margin: 8, backgroundColor: Colors.surface }}
+                />
+                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                  {allParts
+                    .filter(p =>
+                      p.category_id !== null &&
+                      !selectedParts.find(s => s.part.id === p.id) &&
+                      p.name.toLowerCase().includes(partPickerQuery.toLowerCase())
+                    )
+                    .map(p => (
+                      <TouchableOpacity key={p.id} style={styles.partPickerItem}
+                        onPress={() => {
+                          setSelectedParts(prev => [...prev, { part: p, qty: 1 }]);
+                          setPartPickerVisible(false);
+                          setPartPickerQuery('');
+                        }}>
+                        <Text style={styles.partName}>{p.name}</Text>
+                        <Text style={styles.partMeta}>{p.quantity} in stock · ₱{p.selling_price}</Text>
+                      </TouchableOpacity>
+                    ))
+                  }
+                </ScrollView>
               </View>
             )}
           </View>
