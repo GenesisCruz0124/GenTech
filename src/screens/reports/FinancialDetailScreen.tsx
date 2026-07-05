@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { List, Text } from 'react-native-paper';
-import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation, RouteProp, NavigationProp } from '@react-navigation/native';
 import {
   FinancialItem,
   FinancialKind,
@@ -74,6 +74,7 @@ const CONFIG: Record<FinancialKind, {
 
 export default function FinancialDetailScreen() {
   const route = useRoute<Route>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { kind, period, targetDate, dateTo } = route.params;
   const config = CONFIG[kind];
   const [items, setItems] = useState<FinancialItem[]>([]);
@@ -122,6 +123,7 @@ export default function FinancialDetailScreen() {
             </Text>
           )}
           style={styles.item}
+          onPress={item.repair_id ? () => navigation.navigate('RepairDetail', { repairId: item.repair_id! }) : undefined}
         />
       )}
       ListEmptyComponent={

@@ -240,6 +240,7 @@ export interface FinancialItem {
   title: string;
   subtitle: string | null;
   amount: number;
+  repair_id?: number;
 }
 
 export async function getGrossIncomeDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
@@ -275,6 +276,7 @@ export async function getGrossIncomeDetails(period: ReportPeriod, targetDate?: s
         ? `Repair · ${r.customer_name}${r.parts_count > 0 ? ` · ${r.parts_count} part${r.parts_count > 1 ? 's' : ''} used` : ''}`
         : `Repair${r.parts_count > 0 ? ` · ${r.parts_count} part${r.parts_count > 1 ? 's' : ''} used` : ''}`,
       amount: r.amount,
+      repair_id: r.id,
     })),
     ...saleRows.map(r => ({
       id: `sale-${r.id}`,
@@ -295,8 +297,8 @@ export async function getTotalPaidDetails(period: ReportPeriod, targetDate?: str
   const db = await getDB();
   const filter = currentPeriodFilter(period, 'rp.payment_date', targetDate ?? 'now', dateTo);
 
-  const rows = await db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
-    `SELECT rp.id, rp.payment_date as date, r.device_model, c.name as customer_name, rp.amount
+  const rows = await db.getAllAsync<{ id: number; repair_db_id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
+    `SELECT rp.id, r.id as repair_db_id, rp.payment_date as date, r.device_model, c.name as customer_name, rp.amount
      FROM repair_payments rp
      JOIN repairs r ON r.id = rp.repair_id
      LEFT JOIN customers c ON c.id = r.customer_id
@@ -312,6 +314,7 @@ export async function getTotalPaidDetails(period: ReportPeriod, targetDate?: str
     title: r.device_model,
     subtitle: r.customer_name ? `Payment · ${r.customer_name}` : 'Payment',
     amount: r.amount,
+    repair_id: r.repair_db_id,
   }));
 }
 
@@ -337,6 +340,7 @@ export async function getForCollectionDetails(period: ReportPeriod, targetDate?:
     title: r.device_model,
     subtitle: r.customer_name ? `Unpaid · ${r.customer_name}` : 'Unpaid',
     amount: r.amount,
+    repair_id: r.id,
   }));
 }
 
