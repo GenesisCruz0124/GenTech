@@ -45,7 +45,7 @@ export default function ExpenseDetailScreen() {
           description={`${formatDate(item.date)}${item.subtitle ? ` · ${item.subtitle}` : ''}`}
           left={props => (
             <List.Icon {...props}
-              icon={item.type === 'parts' ? 'package-variant' : 'cellphone'}
+              icon={item.type === 'repair_part' ? 'wrench' : item.type === 'parts' ? 'package-variant' : 'cellphone'}
               color={Colors.error}
             />
           )}

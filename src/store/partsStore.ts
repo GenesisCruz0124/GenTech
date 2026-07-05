@@ -26,7 +26,7 @@ interface PartsStore {
   addPart: (data: CreatePartInput) => Promise<number>;
   editPart: (id: number, data: Partial<CreatePartInput>) => Promise<void>;
   removePart: (id: number) => Promise<void>;
-  addToRepair: (repairId: number, partId: number, quantity: number, unitPrice: number) => Promise<void>;
+  addToRepair: (repairId: number, partId: number, quantity: number, unitPrice: number, actualCost?: number) => Promise<void>;
   getForRepair: (repairId: number) => Promise<ReturnType<typeof getRepairParts>>;
   removeFromRepair: (repairPartId: number, partId: number, quantity: number) => Promise<void>;
   bulkRestock: (
@@ -68,8 +68,8 @@ export const usePartsStore = create<PartsStore>((set, get) => ({
     set(state => ({ parts: state.parts.filter(p => p.id !== id) }));
   },
 
-  addToRepair: async (repairId, partId, quantity, unitPrice) => {
-    await addRepairPart(repairId, partId, quantity, unitPrice);
+  addToRepair: async (repairId, partId, quantity, unitPrice, actualCost = 0) => {
+    await addRepairPart(repairId, partId, quantity, unitPrice, actualCost);
     await get().fetchParts();
   },
 

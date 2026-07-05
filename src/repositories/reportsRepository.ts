@@ -9,6 +9,7 @@ export interface PeriodReport {
   gross_income: number;
   parts_expense: number;
   purchase_expense: number;
+  repair_parts_expense: number;
   total_expense: number;
   net_income: number;
   total_paid: number;
@@ -62,8 +63,9 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
   const f3 = currentPeriodFilter(period, 'purchased_at', td, dateTo);
   const f4 = currentPeriodFilter(period, 'purchased_at', td, dateTo);
   const f5 = currentPeriodFilter(period, 'payment_date', td, dateTo);
+  const f6 = currentPeriodFilter(period, 'rpr.created_at', td, dateTo);
 
-  const [repairRows, saleRows, partsRows, purchaseRows, paidRows] = await Promise.all([
+  const [repairRows, saleRows, partsRows, purchaseRows, paidRows, repairPartsRows] = await Promise.all([
     // Gross income = estimated_cost of delivered repairs
     db.getAllAsync<{ period: string; amount: number }>(
       `SELECT strftime('${fmt}', created_at) as period, SUM(estimated_cost) as amount
@@ -94,6 +96,13 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
        WHERE r.status = 'delivered' AND ${f5}
        GROUP BY period ORDER BY period DESC`
     ),
+    // Parts used in repairs — actual cost as expense
+    db.getAllAsync<{ period: string; amount: number }>(
+      `SELECT strftime('${fmt}', rpr.created_at) as period, SUM(rpr.actual_cost * rpr.quantity) as amount
+       FROM repair_parts rpr
+       WHERE rpr.actual_cost > 0 AND ${f6}
+       GROUP BY period ORDER BY period DESC`
+    ),
   ]);
 
   // Merge all rows by period key
@@ -108,6 +117,7 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
         gross_income: 0,
         parts_expense: 0,
         purchase_expense: 0,
+        repair_parts_expense: 0,
         total_expense: 0,
         net_income: 0,
         total_paid: 0,
@@ -118,16 +128,17 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
 
   const round = (n: number) => Math.round((n ?? 0) * 100) / 100;
 
-  for (const row of repairRows)   { ensure(row.period).repair_revenue       = round(row.amount); }
-  for (const row of saleRows)     { ensure(row.period).device_sale_revenue  = round(row.amount); }
-  for (const row of partsRows)    { ensure(row.period).parts_expense        = round(row.amount); }
-  for (const row of purchaseRows) { ensure(row.period).purchase_expense     = round(row.amount); }
-  for (const row of paidRows)     { ensure(row.period).total_paid           = round(row.amount); }
+  for (const row of repairRows)       { ensure(row.period).repair_revenue        = round(row.amount); }
+  for (const row of saleRows)         { ensure(row.period).device_sale_revenue   = round(row.amount); }
+  for (const row of partsRows)        { ensure(row.period).parts_expense         = round(row.amount); }
+  for (const row of purchaseRows)     { ensure(row.period).purchase_expense      = round(row.amount); }
+  for (const row of paidRows)         { ensure(row.period).total_paid            = round(row.amount); }
+  for (const row of repairPartsRows)  { ensure(row.period).repair_parts_expense  = round(row.amount); }
 
   // Compute derived totals with rounding to avoid floating point drift
   const results = Array.from(map.values()).map(r => {
     r.gross_income  = round(r.repair_revenue + r.device_sale_revenue);
-    r.total_expense = round(r.parts_expense  + r.purchase_expense);
+    r.total_expense = round(r.parts_expense  + r.purchase_expense + r.repair_parts_expense);
     r.net_income    = round(r.gross_income   - r.total_expense);
     return r;
   });
@@ -139,7 +150,7 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
 
 export interface ExpenseItem {
   id: string;
-  type: 'parts' | 'device';
+  type: 'parts' | 'device' | 'repair_part';
   date: string;
   title: string;
   subtitle: string | null;
@@ -150,8 +161,9 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   const db = await getDB();
   const partsFilter = currentPeriodFilter(period, 'pp.purchased_at', targetDate ?? 'now', dateTo);
   const deviceFilter = currentPeriodFilter(period, 'dp.purchased_at', targetDate ?? 'now', dateTo);
+  const repairPartsFilter = currentPeriodFilter(period, 'rpr.created_at', targetDate ?? 'now', dateTo);
 
-  const [partsRows, deviceRows] = await Promise.all([
+  const [partsRows, deviceRows, repairPartsRows] = await Promise.all([
     db.getAllAsync<{ id: number; date: string; part_name: string; category_name: string | null; supplier_name: string | null; quantity: number; amount: number }>(
       `SELECT pp.id, pp.purchased_at as date, p.name as part_name, c.name as category_name, pp.supplier_name, pp.quantity,
               pp.quantity * pp.cost_price as amount
@@ -166,6 +178,15 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
        FROM device_purchases dp
        WHERE ${deviceFilter}
        ORDER BY dp.purchased_at DESC`
+    ),
+    db.getAllAsync<{ id: number; date: string; part_name: string; repair_no: string; quantity: number; amount: number }>(
+      `SELECT rpr.id, rpr.created_at as date, p.name as part_name, r.repair_no, rpr.quantity,
+              rpr.actual_cost * rpr.quantity as amount
+       FROM repair_parts rpr
+       JOIN parts p ON p.id = rpr.part_id
+       JOIN repairs r ON r.id = rpr.repair_id
+       WHERE rpr.actual_cost > 0 AND ${repairPartsFilter}
+       ORDER BY rpr.created_at DESC`
     ),
   ]);
 
@@ -186,6 +207,14 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
       subtitle: null,
       amount: r.amount,
     })),
+    ...repairPartsRows.map(r => ({
+      id: `repair_part-${r.id}`,
+      type: 'repair_part' as const,
+      date: r.date,
+      title: r.part_name,
+      subtitle: `Used in ${r.repair_no} · Qty ${r.quantity}`,
+      amount: r.amount,
+    })),
   ];
 
   items.sort((a, b) => b.date.localeCompare(a.date));
@@ -197,7 +226,7 @@ export type FinancialKind = 'gross_income' | 'net_income' | 'net_income_cash' | 
 export interface FinancialItem {
   id: string;
   kind: 'income' | 'expense';
-  type: 'repair' | 'device_sale' | 'payment' | 'unpaid' | 'parts' | 'device';
+  type: 'repair' | 'device_sale' | 'payment' | 'unpaid' | 'parts' | 'device' | 'repair_part';
   date: string;
   title: string;
   subtitle: string | null;

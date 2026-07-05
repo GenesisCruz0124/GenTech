@@ -25,6 +25,7 @@ const TYPE_ICONS: Record<FinancialItem['type'], string> = {
   unpaid: 'cash-clock',
   parts: 'package-variant',
   device: 'cellphone',
+  repair_part: 'wrench',
 };
 
 const CONFIG: Record<FinancialKind, {

@@ -39,7 +39,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RepairDetail'>;
 export default function RepairDetailScreen({ route, navigation }: Props) {
   const { repairId } = route.params;
   const { advanceStatus, removeRepair, editRepair, setNotRepaired, deliver } = useRepairStore();
-  const { getForRepair, addToRepair } = usePartsStore();
+  const { getForRepair, addToRepair, removeFromRepair } = usePartsStore();
 
   const [repair, setRepair] = useState<RepairWithCustomer | null>(null);
   const [parts, setParts] = useState<any[]>([]);
@@ -117,6 +117,15 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
   const [editPartPickerVisible, setEditPartPickerVisible] = useState(false);
   const [editPartsToAdd, setEditPartsToAdd] = useState<{ part: any; qty: number }[]>([]);
 
+  // Add Part modal (standalone from repair detail)
+  const [partModalVisible, setPartModalVisible] = useState(false);
+  const [partModalPart, setPartModalPart] = useState<any | null>(null);
+  const [partModalQty, setPartModalQty] = useState('1');
+  const [partModalActualCost, setPartModalActualCost] = useState('');
+  const [partModalCustomerPrice, setPartModalCustomerPrice] = useState('');
+  const [partPickerVisible, setPartPickerVisible] = useState(false);
+  const [partPickerQuery, setPartPickerQuery] = useState('');
+
   // Edit modal state
   const [editVisible, setEditVisible] = useState(false);
   const [editCustomerName, setEditCustomerName] = useState('');
@@ -142,6 +151,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
     setPayments(pmt);
     const paid = await getTotalPaid(repairId);
     setTotalPaid(paid);
+    getAllParts().then(setAllPartsForEdit);
   }, [repairId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -171,7 +181,6 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
   const openEdit = () => {
     setEditPartsToAdd([]);
     setEditPartPickerVisible(false);
-    getAllParts().then(setAllPartsForEdit);
     setEditDevice(repair.device_model);
     const saved = repair.issue_desc.split(', ').map(s => s.trim()).filter(Boolean);
     setEditSelectedIssues(saved);
@@ -199,7 +208,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
         notes: editNotes.trim() || undefined,
       });
       for (const { part, qty } of editPartsToAdd) {
-        await addToRepair(repairId, part.id, qty, part.selling_price);
+        await addToRepair(repairId, part.id, qty, part.selling_price, part.cost_price ?? 0);
       }
       setEditVisible(false);
       load();
@@ -693,6 +702,60 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
+        {/* ── PARTS USED ─────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardSectionLabel}>Parts Used</Text>
+          {parts.length === 0 && (
+            <Text style={styles.partsEmptyText}>No parts added yet</Text>
+          )}
+          {parts.map((p, idx) => (
+            <View key={p.id}>
+              {idx > 0 && <View style={styles.rowDivider} />}
+              <View style={styles.partUsedRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.partUsedName}>{p.name}</Text>
+                  <Text style={styles.partUsedMeta}>
+                    {'Qty ' + p.quantity + (p.actual_cost > 0 ? ' · Cost: ' + formatCurrency(p.actual_cost) : '')}
+                  </Text>
+                </View>
+                <Text style={styles.partUsedPrice}>{formatCurrency(p.unit_price * p.quantity)}</Text>
+                <TouchableOpacity style={styles.partUsedDelete} onPress={() =>
+                  Alert.alert('Remove Part', `Remove ${p.name} from this repair?`, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Remove', style: 'destructive', onPress: async () => {
+                      await removeFromRepair(p.id, p.part_id, p.quantity);
+                      const updated = await getForRepair(repairId);
+                      setParts(updated);
+                    }},
+                  ])
+                }>
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+          {parts.length > 0 && (
+            <View style={styles.partsTotalRow}>
+              <Text style={styles.partsTotalLabel}>Parts Total</Text>
+              <Text style={styles.partsTotalValue}>{formatCurrency(partsTotal)}</Text>
+            </View>
+          )}
+          <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: parts.length === 0 ? 4 : 8 }}>
+            <Button mode="outlined" icon="plus" compact
+              onPress={() => {
+                setPartModalPart(null);
+                setPartModalQty('1');
+                setPartModalActualCost('');
+                setPartModalCustomerPrice('');
+                setPartPickerVisible(false);
+                setPartPickerQuery('');
+                setPartModalVisible(true);
+              }}>
+              Add Part
+            </Button>
+          </View>
+        </View>
+
         {/* ── ACTION BUTTONS ─────────────────────────────── */}
         <View style={styles.actionsWrap}>
           {/* Advance status (pending / in_progress) */}
@@ -1019,6 +1082,99 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
         </Modal>
       </Portal>
 
+      {/* ── ADD PART MODAL ─────────────────────────────── */}
+      <Portal>
+        <Modal visible={partModalVisible} onDismiss={() => setPartModalVisible(false)} contentContainerStyle={styles.modal}>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>Add Part to Repair</Text>
+
+            <Text style={styles.modalLabel}>Select Part</Text>
+            <TouchableOpacity style={styles.partPickerToggle} onPress={() => setPartPickerVisible(v => !v)}>
+              <Text style={partModalPart ? styles.partPickerSelected : styles.partPickerPlaceholder}>
+                {partModalPart ? `${partModalPart.name} · ${partModalPart.quantity} in stock` : 'Tap to select a part…'}
+              </Text>
+              <MaterialCommunityIcons name={partPickerVisible ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            {partPickerVisible && (
+              <View style={styles.editPartPicker}>
+                <TextInput
+                  mode="outlined"
+                  dense
+                  placeholder="Search parts…"
+                  value={partPickerQuery}
+                  onChangeText={setPartPickerQuery}
+                  style={[styles.modalInput, { marginHorizontal: 8, marginTop: 6 }]}
+                />
+                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                  {allPartsForEdit
+                    .filter(p => p.name.toLowerCase().includes(partPickerQuery.toLowerCase()))
+                    .map((p: any) => (
+                      <TouchableOpacity key={p.id} style={styles.editPartPickerItem}
+                        onPress={() => {
+                          setPartModalPart(p);
+                          setPartModalActualCost(String(p.cost_price ?? ''));
+                          setPartModalCustomerPrice(String(p.selling_price ?? ''));
+                          setPartPickerVisible(false);
+                        }}>
+                        <Text style={styles.partNameTxt}>{p.name}</Text>
+                        <Text style={styles.partMetaTxt}>{p.quantity} in stock · ₱{p.selling_price}</Text>
+                      </TouchableOpacity>
+                    ))
+                  }
+                </ScrollView>
+              </View>
+            )}
+
+            <Text style={styles.modalLabel}>Quantity</Text>
+            <TextInput
+              mode="outlined"
+              value={partModalQty}
+              onChangeText={setPartModalQty}
+              keyboardType="numeric"
+              style={styles.modalInput}
+            />
+
+            <Text style={styles.modalLabel}>Actual Cost ₱ (your expense per unit)</Text>
+            <TextInput
+              mode="outlined"
+              value={partModalActualCost}
+              onChangeText={setPartModalActualCost}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              style={styles.modalInput}
+            />
+
+            <Text style={styles.modalLabel}>Customer Price ₱ (charged to customer per unit)</Text>
+            <TextInput
+              mode="outlined"
+              value={partModalCustomerPrice}
+              onChangeText={setPartModalCustomerPrice}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              style={styles.modalInput}
+            />
+
+            <View style={styles.modalActions}>
+              <Button mode="outlined" onPress={() => setPartModalVisible(false)} style={styles.btnHalf}>Cancel</Button>
+              <Button mode="contained" style={styles.btnHalf}
+                disabled={!partModalPart || !(parseInt(partModalQty) > 0)}
+                onPress={async () => {
+                  if (!partModalPart) return;
+                  const qty = parseInt(partModalQty) || 1;
+                  const customerPrice = parseFloat(partModalCustomerPrice) || 0;
+                  const actualCost = parseFloat(partModalActualCost) || 0;
+                  await addToRepair(repairId, partModalPart.id, qty, customerPrice, actualCost);
+                  const updated = await getForRepair(repairId);
+                  setParts(updated);
+                  setPartModalVisible(false);
+                }}>
+                Confirm
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
+      </Portal>
+
       {/* ── EDIT MODAL ─────────────────────────────────── */}
       <Portal>
         <Modal visible={editVisible} onDismiss={() => setEditVisible(false)} contentContainerStyle={styles.modal}>
@@ -1102,7 +1258,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
             </Button>
             {editPartPickerVisible && (
               <View style={styles.editPartPicker}>
-                {allPartsForEdit.filter(p => p.quantity > 0 && !editPartsToAdd.find(s => s.part.id === p.id)).map((part: any) => (
+                {allPartsForEdit.filter(p => !editPartsToAdd.find(s => s.part.id === p.id)).map((part: any) => (
                   <TouchableOpacity key={part.id} style={styles.editPartPickerItem}
                     onPress={() => { setEditPartsToAdd(prev => [...prev, { part, qty: 1 }]); setEditPartPickerVisible(false); }}>
                     <Text style={styles.partNameTxt}>{part.name}</Text>
@@ -1478,4 +1634,20 @@ const styles = StyleSheet.create({
   qtyNum: { fontSize: 16, fontWeight: '700', color: Colors.primary, minWidth: 24, textAlign: 'center' },
   editPartPicker: { backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, marginBottom: 8, overflow: 'hidden' },
   editPartPickerItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+
+  // ── Parts Used card
+  partsEmptyText: { fontSize: 13, color: Colors.textSecondary, fontStyle: 'italic', paddingHorizontal: 16, paddingVertical: 10 },
+  partUsedRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 },
+  partUsedName: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  partUsedMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  partUsedPrice: { fontSize: 14, fontWeight: '700', color: Colors.success, marginRight: 8 },
+  partUsedDelete: { padding: 4 },
+  partsTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#F0F1F3', backgroundColor: '#F8F9FB' },
+  partsTotalLabel: { fontSize: 12, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  partsTotalValue: { fontSize: 16, fontWeight: '800', color: Colors.success },
+
+  // ── Add Part modal picker
+  partPickerToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: Colors.background, marginBottom: 4 },
+  partPickerSelected: { fontSize: 13, fontWeight: '600', color: Colors.text, flex: 1 },
+  partPickerPlaceholder: { fontSize: 13, color: Colors.textSecondary, flex: 1 },
 });

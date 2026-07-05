@@ -1459,6 +1459,12 @@ const MIGRATIONS: Migration[] = [
       `UPDATE invoices SET uuid = lower(hex(randomblob(16))) WHERE uuid IS NULL`,
     ],
   },
+  {
+    version: 45,
+    statements: [
+      `ALTER TABLE repair_parts ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0`,
+    ],
+  },
 ];
 
 // All tables that participate in multi-device sync (catalog/reference tables

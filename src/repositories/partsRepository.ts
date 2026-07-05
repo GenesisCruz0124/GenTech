@@ -309,20 +309,20 @@ export async function getLowStockParts(): Promise<Part[]> {
   );
 }
 
-export async function addRepairPart(repairId: number, partId: number, quantity: number, unitPrice: number): Promise<void> {
+export async function addRepairPart(repairId: number, partId: number, quantity: number, unitPrice: number, actualCost = 0): Promise<void> {
   const db = await getDB();
   const result = await db.runAsync(
-    'INSERT INTO repair_parts (repair_id, part_id, quantity, unit_price) VALUES (?, ?, ?, ?)',
-    [repairId, partId, quantity, unitPrice]
+    'INSERT INTO repair_parts (repair_id, part_id, quantity, unit_price, actual_cost) VALUES (?, ?, ?, ?, ?)',
+    [repairId, partId, quantity, unitPrice, actualCost]
   );
   await trackInsert(db, 'repair_parts', result.lastInsertRowId);
   await adjustStock(partId, -quantity);
 }
 
-export async function getRepairParts(repairId: number): Promise<{ id: number; part_id: number; name: string; quantity: number; unit_price: number }[]> {
+export async function getRepairParts(repairId: number): Promise<{ id: number; part_id: number; name: string; quantity: number; unit_price: number; actual_cost: number }[]> {
   const db = await getDB();
   return db.getAllAsync(
-    `SELECT rp.id, rp.part_id, p.name, rp.quantity, rp.unit_price
+    `SELECT rp.id, rp.part_id, p.name, rp.quantity, rp.unit_price, rp.actual_cost
      FROM repair_parts rp
      JOIN parts p ON p.id = rp.part_id
      WHERE rp.repair_id = ?`,
