@@ -11,6 +11,7 @@ import {
   addRepairPart,
   getRepairParts,
   removeRepairPart,
+  updateRepairPart,
   recordPartsPurchase,
   updatePartsPurchaseStatus,
   RestockStatus,
@@ -29,6 +30,7 @@ interface PartsStore {
   addToRepair: (repairId: number, partId: number, quantity: number, unitPrice: number, actualCost?: number) => Promise<void>;
   getForRepair: (repairId: number) => Promise<ReturnType<typeof getRepairParts>>;
   removeFromRepair: (repairPartId: number, partId: number, quantity: number) => Promise<void>;
+  updateInRepair: (repairPartId: number, quantity: number, unitPrice: number, actualCost: number) => Promise<void>;
   bulkRestock: (
     items: { part_id: number; quantity: number; cost_price: number }[],
     shared: { supplier_name?: string; notes?: string; image_uri?: string; purchased_at?: string; status?: RestockStatus }
@@ -79,6 +81,11 @@ export const usePartsStore = create<PartsStore>((set, get) => ({
 
   removeFromRepair: async (repairPartId, partId, quantity) => {
     await removeRepairPart(repairPartId, partId, quantity);
+    await get().fetchParts();
+  },
+
+  updateInRepair: async (repairPartId, quantity, unitPrice, actualCost) => {
+    await updateRepairPart(repairPartId, quantity, unitPrice, actualCost);
     await get().fetchParts();
   },
 

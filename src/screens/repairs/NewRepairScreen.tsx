@@ -644,7 +644,7 @@ export default function NewRepairScreen({ navigation, route }: Props) {
                           setPartPickerQuery('');
                         }}>
                         <Text style={styles.partName}>{p.name}</Text>
-                        <Text style={styles.partMeta}>{p.quantity} in stock · ₱{p.selling_price}</Text>
+                        <Text style={styles.partMeta}>{p.category_name ? `${p.category_name} · ` : ''}{p.quantity} in stock · ₱{p.selling_price}</Text>
                       </TouchableOpacity>
                     ))
                   }

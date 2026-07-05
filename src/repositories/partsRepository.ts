@@ -319,12 +319,13 @@ export async function addRepairPart(repairId: number, partId: number, quantity: 
   await adjustStock(partId, -quantity);
 }
 
-export async function getRepairParts(repairId: number): Promise<{ id: number; part_id: number; name: string; quantity: number; unit_price: number; actual_cost: number }[]> {
+export async function getRepairParts(repairId: number): Promise<{ id: number; part_id: number; name: string; category_name: string | null; quantity: number; unit_price: number; actual_cost: number }[]> {
   const db = await getDB();
   return db.getAllAsync(
-    `SELECT rp.id, rp.part_id, p.name, rp.quantity, rp.unit_price, rp.actual_cost
+    `SELECT rp.id, rp.part_id, p.name, c.name as category_name, rp.quantity, rp.unit_price, rp.actual_cost
      FROM repair_parts rp
      JOIN parts p ON p.id = rp.part_id
+     LEFT JOIN categories c ON c.id = p.category_id
      WHERE rp.repair_id = ?`,
     [repairId]
   );
@@ -341,6 +342,21 @@ export async function searchCompatibleModels(query: string): Promise<string[]> {
   }
   const q = query.toLowerCase();
   return Array.from(names).filter(name => name.toLowerCase().includes(q)).sort();
+}
+
+export async function updateRepairPart(id: number, quantity: number, unitPrice: number, actualCost: number): Promise<void> {
+  const db = await getDB();
+  const existing = await db.getFirstAsync<{ part_id: number; quantity: number }>(
+    'SELECT part_id, quantity FROM repair_parts WHERE id = ?', [id]
+  );
+  if (!existing) return;
+  await db.runAsync(
+    'UPDATE repair_parts SET quantity = ?, unit_price = ?, actual_cost = ? WHERE id = ?',
+    [quantity, unitPrice, actualCost, id]
+  );
+  await trackUpdate(db, 'repair_parts', id);
+  const delta = existing.quantity - quantity;
+  if (delta !== 0) await adjustStock(existing.part_id, delta);
 }
 
 export async function removeRepairPart(repairPartId: number, partId: number, quantity: number): Promise<void> {

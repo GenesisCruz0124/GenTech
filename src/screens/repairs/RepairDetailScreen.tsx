@@ -39,7 +39,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RepairDetail'>;
 export default function RepairDetailScreen({ route, navigation }: Props) {
   const { repairId } = route.params;
   const { advanceStatus, removeRepair, editRepair, setNotRepaired, deliver } = useRepairStore();
-  const { getForRepair, addToRepair, removeFromRepair } = usePartsStore();
+  const { getForRepair, addToRepair, removeFromRepair, updateInRepair } = usePartsStore();
 
   const [repair, setRepair] = useState<RepairWithCustomer | null>(null);
   const [parts, setParts] = useState<any[]>([]);
@@ -119,6 +119,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
 
   // Add Part modal (standalone from repair detail)
   const [partModalVisible, setPartModalVisible] = useState(false);
+  const [partModalEditId, setPartModalEditId] = useState<number | null>(null);
   const [partModalPart, setPartModalPart] = useState<any | null>(null);
   const [partModalQty, setPartModalQty] = useState('1');
   const [partModalActualCost, setPartModalActualCost] = useState('');
@@ -715,10 +716,23 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.partUsedName}>{p.name}</Text>
                   <Text style={styles.partUsedMeta}>
-                    {'Qty ' + p.quantity + (p.actual_cost > 0 ? ' · Cost: ' + formatCurrency(p.actual_cost) : '')}
+                    {p.category_name ? `${p.category_name} · ` : ''}{'Qty ' + p.quantity + (p.actual_cost > 0 ? ' · Cost: ' + formatCurrency(p.actual_cost) : '')}
                   </Text>
                 </View>
                 <Text style={styles.partUsedPrice}>{formatCurrency(p.unit_price * p.quantity)}</Text>
+                <TouchableOpacity style={styles.partUsedDelete} onPress={() => {
+                  const found = allPartsForEdit.find((ap: any) => ap.id === p.part_id) ?? null;
+                  setPartModalEditId(p.id);
+                  setPartModalPart(found);
+                  setPartModalQty(String(p.quantity));
+                  setPartModalActualCost(String(p.actual_cost));
+                  setPartModalCustomerPrice(String(p.unit_price));
+                  setPartPickerVisible(false);
+                  setPartPickerQuery('');
+                  setPartModalVisible(true);
+                }}>
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={Colors.primary} />
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.partUsedDelete} onPress={() =>
                   Alert.alert('Remove Part', `Remove ${p.name} from this repair?`, [
                     { text: 'Cancel', style: 'cancel' },
@@ -743,6 +757,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
           <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: parts.length === 0 ? 4 : 8 }}>
             <Button mode="outlined" icon="plus" compact
               onPress={() => {
+                setPartModalEditId(null);
                 setPartModalPart(null);
                 setPartModalQty('1');
                 setPartModalActualCost('');
@@ -1086,16 +1101,26 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
       <Portal>
         <Modal visible={partModalVisible} onDismiss={() => setPartModalVisible(false)} contentContainerStyle={styles.modal}>
           <ScrollView keyboardShouldPersistTaps="handled">
-            <Text style={styles.modalTitle}>Add Part to Repair</Text>
+            <Text style={styles.modalTitle}>{partModalEditId ? 'Edit Part' : 'Add Part to Repair'}</Text>
 
-            <Text style={styles.modalLabel}>Select Part</Text>
-            <TouchableOpacity style={styles.partPickerToggle} onPress={() => setPartPickerVisible(v => !v)}>
-              <Text style={partModalPart ? styles.partPickerSelected : styles.partPickerPlaceholder}>
-                {partModalPart ? `${partModalPart.name} · ${partModalPart.quantity} in stock` : 'Tap to select a part…'}
-              </Text>
-              <MaterialCommunityIcons name={partPickerVisible ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.primary} />
-            </TouchableOpacity>
-            {partPickerVisible && (
+            {partModalEditId ? (
+              <View style={[styles.partPickerToggle, { marginBottom: 8 }]}>
+                <Text style={styles.partPickerSelected}>
+                  {partModalPart ? `${partModalPart.name}${partModalPart.category_name ? ` · ${partModalPart.category_name}` : ''}` : 'Part'}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.modalLabel}>Select Part</Text>
+                <TouchableOpacity style={styles.partPickerToggle} onPress={() => setPartPickerVisible(v => !v)}>
+                  <Text style={partModalPart ? styles.partPickerSelected : styles.partPickerPlaceholder}>
+                    {partModalPart ? `${partModalPart.name}${partModalPart.category_name ? ` · ${partModalPart.category_name}` : ''} · ${partModalPart.quantity} in stock` : 'Tap to select a part…'}
+                  </Text>
+                  <MaterialCommunityIcons name={partPickerVisible ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.primary} />
+                </TouchableOpacity>
+              </>
+            )}
+            {!partModalEditId && partPickerVisible && (
               <View style={styles.editPartPicker}>
                 <TextInput
                   mode="outlined"
@@ -1117,7 +1142,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                           setPartPickerVisible(false);
                         }}>
                         <Text style={styles.partNameTxt}>{p.name}</Text>
-                        <Text style={styles.partMetaTxt}>{p.quantity} in stock · ₱{p.selling_price}</Text>
+                        <Text style={styles.partMetaTxt}>{p.category_name ? `${p.category_name} · ` : ''}{p.quantity} in stock · ₱{p.selling_price}</Text>
                       </TouchableOpacity>
                     ))
                   }
@@ -1157,16 +1182,21 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
             <View style={styles.modalActions}>
               <Button mode="outlined" onPress={() => setPartModalVisible(false)} style={styles.btnHalf}>Cancel</Button>
               <Button mode="contained" style={styles.btnHalf}
-                disabled={!partModalPart || !(parseInt(partModalQty) > 0)}
+                disabled={(!partModalEditId && !partModalPart) || !(parseInt(partModalQty) > 0)}
                 onPress={async () => {
-                  if (!partModalPart) return;
                   const qty = parseInt(partModalQty) || 1;
                   const customerPrice = parseFloat(partModalCustomerPrice) || 0;
                   const actualCost = parseFloat(partModalActualCost) || 0;
-                  await addToRepair(repairId, partModalPart.id, qty, customerPrice, actualCost);
+                  if (partModalEditId) {
+                    await updateInRepair(partModalEditId, qty, customerPrice, actualCost);
+                  } else {
+                    if (!partModalPart) return;
+                    await addToRepair(repairId, partModalPart.id, qty, customerPrice, actualCost);
+                  }
                   const updated = await getForRepair(repairId);
                   setParts(updated);
                   setPartModalVisible(false);
+                  setPartModalEditId(null);
                 }}>
                 Confirm
               </Button>
@@ -1237,7 +1267,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
               <View key={part.id} style={styles.editPartRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.partNameTxt}>{part.name}</Text>
-                  <Text style={styles.partMetaTxt}>₱{part.selling_price} · {part.quantity} in stock</Text>
+                  <Text style={styles.partMetaTxt}>{part.category_name ? `${part.category_name} · ` : ''}₱{part.selling_price} · {part.quantity} in stock</Text>
                 </View>
                 <View style={styles.editPartQtyRow}>
                   <TouchableOpacity onPress={() => setEditPartsToAdd(p => p.map(x => x.part.id === part.id ? { ...x, qty: Math.max(1, x.qty - 1) } : x))}>
@@ -1262,7 +1292,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                   <TouchableOpacity key={part.id} style={styles.editPartPickerItem}
                     onPress={() => { setEditPartsToAdd(prev => [...prev, { part, qty: 1 }]); setEditPartPickerVisible(false); }}>
                     <Text style={styles.partNameTxt}>{part.name}</Text>
-                    <Text style={styles.partMetaTxt}>{part.quantity} in stock · ₱{part.selling_price}</Text>
+                    <Text style={styles.partMetaTxt}>{part.category_name ? `${part.category_name} · ` : ''}{part.quantity} in stock · ₱{part.selling_price}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
