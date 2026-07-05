@@ -184,7 +184,8 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
        ORDER BY dp.purchased_at DESC`
     )),
     safe(db.getAllAsync<{ id: number; date: string; part_name: string; repair_no: string; quantity: number; amount: number }>(
-      `SELECT rpr.id, rpr.created_at as date, p.name as part_name, r.repair_no, rpr.quantity,
+      `SELECT rpr.id, rpr.created_at as date, p.name as part_name,
+              printf('RPN-%04d', r.id) as repair_no, rpr.quantity,
               rpr.actual_cost * rpr.quantity as amount
        FROM repair_parts rpr
        JOIN parts p ON p.id = rpr.part_id
