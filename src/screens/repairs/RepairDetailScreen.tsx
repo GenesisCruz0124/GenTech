@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Linking, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, Text, TextInput, IconButton, Portal, Modal } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -445,9 +445,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                     }}>Save</Button>
                 </View>
               ) : (
-                <Text style={styles.fieldValue}>
-                  {repair.customer_name}{repair.customer_phone ? ` · ${repair.customer_phone}` : ''}
-                </Text>
+                <Text style={styles.fieldValue}>{repair.customer_name}</Text>
               )}
             </View>
             <TouchableOpacity style={styles.editIconBtn}
@@ -455,6 +453,27 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
               <MaterialCommunityIcons name={editingCustomer ? 'close' : 'pencil-outline'} size={15} color={Colors.primary} />
             </TouchableOpacity>
           </View>
+
+          {/* Contact number row */}
+          {repair.customer_phone ? (
+            <>
+              <View style={styles.rowDivider} />
+              <View style={[styles.fieldRow, { alignItems: 'center' }]}>
+                <View style={styles.fieldIconWrap}>
+                  <MaterialCommunityIcons name="phone-outline" size={18} color={Colors.primary} />
+                </View>
+                <View style={styles.fieldBody}>
+                  <Text style={styles.fieldLabel}>Contact Number</Text>
+                  <Text style={styles.fieldValue}>{repair.customer_phone}</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.editIconBtn, { backgroundColor: Colors.success + '18' }]}
+                  onPress={() => Linking.openURL(`tel:${repair.customer_phone}`)}>
+                  <MaterialCommunityIcons name="phone" size={18} color={Colors.success} />
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : null}
 
           <View style={styles.rowDivider} />
 
