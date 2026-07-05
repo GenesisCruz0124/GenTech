@@ -155,6 +155,7 @@ export interface ExpenseItem {
   title: string;
   subtitle: string | null;
   amount: number;
+  repair_no?: string | null;
 }
 
 export async function getExpenseDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<ExpenseItem[]> {
@@ -168,12 +169,14 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   };
 
   const [partsRows, deviceRows, repairPartsRows] = await Promise.all([
-    safe(db.getAllAsync<{ id: number; date: string; part_name: string; category_name: string | null; supplier_name: string | null; quantity: number; amount: number }>(
+    safe(db.getAllAsync<{ id: number; date: string; part_name: string; category_name: string | null; supplier_name: string | null; quantity: number; amount: number; repair_no: string | null }>(
       `SELECT pp.id, pp.purchased_at as date, p.name as part_name, c.name as category_name, pp.supplier_name, pp.quantity,
-              pp.quantity * pp.cost_price as amount
+              pp.quantity * pp.cost_price as amount,
+              printf('RPN-%04d', r.id) as repair_no
        FROM parts_purchases pp
        JOIN parts p ON p.id = pp.part_id
        LEFT JOIN categories c ON c.id = p.category_id
+       LEFT JOIN repairs r ON r.id = pp.repair_id
        WHERE ${partsFilter}
        ORDER BY pp.purchased_at DESC`
     )),
@@ -201,8 +204,9 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
       type: 'parts' as const,
       date: r.date,
       title: r.part_name,
-      subtitle: `Qty ${r.quantity}${r.category_name ? ` · ${r.category_name}` : ''}${r.supplier_name ? ` · ${r.supplier_name}` : ''}`,
+      subtitle: `${r.repair_no ? `Used in ${r.repair_no} · ` : ''}Qty ${r.quantity}${r.category_name ? ` · ${r.category_name}` : ''}${r.supplier_name ? ` · ${r.supplier_name}` : ''}`,
       amount: r.amount,
+      repair_no: r.repair_no,
     })),
     ...deviceRows.map(r => ({
       id: `device-${r.id}`,

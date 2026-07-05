@@ -1465,6 +1465,12 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE repair_parts ADD COLUMN actual_cost REAL NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    version: 46,
+    statements: [
+      `ALTER TABLE parts_purchases ADD COLUMN repair_id INTEGER REFERENCES repairs(id)`,
+    ],
+  },
 ];
 
 // All tables that participate in multi-device sync (catalog/reference tables
@@ -1525,6 +1531,7 @@ export async function runMigrations(db: SQLite.SQLiteDatabase): Promise<void> {
   // inspecting the actual table schema rather than trusting the ledger.
   await ensureColumn(db, 'parts_purchases', 'status', `ALTER TABLE parts_purchases ADD COLUMN status TEXT NOT NULL DEFAULT 'received'`);
   await ensureColumn(db, 'parts_purchases', 'received_at', `ALTER TABLE parts_purchases ADD COLUMN received_at TEXT`);
+  await ensureColumn(db, 'parts_purchases', 'repair_id', `ALTER TABLE parts_purchases ADD COLUMN repair_id INTEGER REFERENCES repairs(id)`);
   await ensureColumn(db, 'parts', 'compatible_model', `ALTER TABLE parts ADD COLUMN compatible_model TEXT`);
 
   for (const table of SYNCABLE_TABLES) {

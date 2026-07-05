@@ -359,6 +359,12 @@ export async function updateRepairPart(id: number, quantity: number, unitPrice: 
   if (delta !== 0) await adjustStock(existing.part_id, delta);
 }
 
+export async function tagPurchaseToRepair(purchaseId: number, repairId: number | null): Promise<void> {
+  const db = await getDB();
+  await db.runAsync('UPDATE parts_purchases SET repair_id = ? WHERE id = ?', [repairId, purchaseId]);
+  await trackUpdate(db, 'parts_purchases', purchaseId);
+}
+
 export async function removeRepairPart(repairPartId: number, partId: number, quantity: number): Promise<void> {
   const db = await getDB();
   const uuid = await getUuid(db, 'repair_parts', repairPartId);
