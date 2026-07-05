@@ -163,8 +163,12 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   const deviceFilter = currentPeriodFilter(period, 'dp.purchased_at', targetDate ?? 'now', dateTo);
   const repairPartsFilter = currentPeriodFilter(period, 'rpr.created_at', targetDate ?? 'now', dateTo);
 
+  const safe = async <T>(p: Promise<T[]>): Promise<T[]> => {
+    try { return await p; } catch (e) { console.warn('getExpenseDetails subquery error:', e); return []; }
+  };
+
   const [partsRows, deviceRows, repairPartsRows] = await Promise.all([
-    db.getAllAsync<{ id: number; date: string; part_name: string; category_name: string | null; supplier_name: string | null; quantity: number; amount: number }>(
+    safe(db.getAllAsync<{ id: number; date: string; part_name: string; category_name: string | null; supplier_name: string | null; quantity: number; amount: number }>(
       `SELECT pp.id, pp.purchased_at as date, p.name as part_name, c.name as category_name, pp.supplier_name, pp.quantity,
               pp.quantity * pp.cost_price as amount
        FROM parts_purchases pp
@@ -172,14 +176,14 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
        LEFT JOIN categories c ON c.id = p.category_id
        WHERE ${partsFilter}
        ORDER BY pp.purchased_at DESC`
-    ),
-    db.getAllAsync<{ id: number; date: string; device_name: string; device_model: string; amount: number }>(
+    )),
+    safe(db.getAllAsync<{ id: number; date: string; device_name: string; device_model: string; amount: number }>(
       `SELECT dp.id, dp.purchased_at as date, dp.device_name, dp.device_model, dp.purchase_price as amount
        FROM device_purchases dp
        WHERE ${deviceFilter}
        ORDER BY dp.purchased_at DESC`
-    ),
-    db.getAllAsync<{ id: number; date: string; part_name: string; repair_no: string; quantity: number; amount: number }>(
+    )),
+    safe(db.getAllAsync<{ id: number; date: string; part_name: string; repair_no: string; quantity: number; amount: number }>(
       `SELECT rpr.id, rpr.created_at as date, p.name as part_name, r.repair_no, rpr.quantity,
               rpr.actual_cost * rpr.quantity as amount
        FROM repair_parts rpr
@@ -187,7 +191,7 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
        JOIN repairs r ON r.id = rpr.repair_id
        WHERE rpr.actual_cost > 0 AND ${repairPartsFilter}
        ORDER BY rpr.created_at DESC`
-    ),
+    )),
   ]);
 
   const items: ExpenseItem[] = [
