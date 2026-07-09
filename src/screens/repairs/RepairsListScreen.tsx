@@ -175,18 +175,22 @@ export default function RepairsListScreen() {
     });
   }, [navigation, filterVisible, selectedFilters, searchVisible, sortVisible]);
 
-  // Skip flag: when arriving from dashboard, skip the stale useFocusEffect load
+  // Skip flags: when arriving from dashboard, suppress both the focus reload and the
+  // load() call that fires because setSelectedFilters changes the `load` reference.
   const skipNextFocusLoad = useRef(false);
+  const skipNextLoadEffect = useRef(false);
 
-  // Apply filter from dashboard navigation — update chips AND immediately fetch
+  // Apply filter from dashboard navigation — navKey changes on every tap so this
+  // always re-fires even when initialFilter stays the same (e.g. repeated "Total Repairs" taps).
   useEffect(() => {
-    const incoming = route.params?.initialFilter as FilterValue | undefined;
-    if (incoming === undefined) return;
+    const navKey = route.params?.navKey;
+    if (navKey === undefined) return;
+    const incoming = (route.params?.initialFilter ?? '') as FilterValue;
     const dateFrom = route.params?.dateFrom as string | undefined;
     const dateTo = route.params?.dateTo as string | undefined;
     skipNextFocusLoad.current = true;
+    skipNextLoadEffect.current = true;
     if (incoming === '') {
-      // "Total Repairs" tile — clear any active filter and show everything
       setSelectedFilters(new Set());
       fetchRepairs({ dateFrom, dateTo });
       return;
@@ -197,7 +201,7 @@ export default function RepairsListScreen() {
     } else {
       fetchRepairs({ status: incoming as RepairStatus, dateFrom, dateTo });
     }
-  }, [route.params?.initialFilter]);
+  }, [route.params?.navKey]);
 
   // Reload on focus — clears stale filters if a repair was just created
   useFocusEffect(useCallback(() => {
@@ -206,7 +210,6 @@ export default function RepairsListScreen() {
       return;
     }
     if (consumeRepairJustCreated()) {
-      // A repair was just created — clear any active filters so it's always visible
       setSelectedFilters(new Set());
       fetchRepairs({});
       return;
@@ -214,7 +217,13 @@ export default function RepairsListScreen() {
     load();
   }, [load]));
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (skipNextLoadEffect.current) {
+      skipNextLoadEffect.current = false;
+      return;
+    }
+    load();
+  }, [load]);
 
   return (
     <View style={styles.container}>

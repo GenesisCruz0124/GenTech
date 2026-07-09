@@ -162,7 +162,7 @@ export default function DashboardScreen() {
 
   const goRepairs = (filter: string) => {
     const { dateFrom, dateTo } = getDateRange();
-    navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter, dateFrom, dateTo } } as any);
+    navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter, dateFrom, dateTo, navKey: Date.now() } } as any);
   };
 
   const goFinancialDetail = (kind: FinancialKind) => {

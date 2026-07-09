@@ -36,7 +36,7 @@ export type RootStackParamList = {
 export type TabParamList = {
   Dashboard: undefined;
   Customers: undefined;
-  Repairs: { initialFilter?: string; dateFrom?: string; dateTo?: string } | undefined;
+  Repairs: { initialFilter?: string; dateFrom?: string; dateTo?: string; navKey?: number } | undefined;
   Parts: undefined;
   Suppliers: undefined;
   CoTech: undefined;
