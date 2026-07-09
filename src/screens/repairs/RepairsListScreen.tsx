@@ -79,12 +79,9 @@ export default function RepairsListScreen() {
   const [selectedFilters, setSelectedFilters] = useState<Set<FilterValue>>(new Set());
   const [dateRange, setDateRange] = useState<DateRange>('month');
   const [searchVisible, setSearchVisible] = useState(false);
-  const [filterVisible, setFilterVisible] = useState(false);
   const [sortVisible, setSortVisible] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   useAnimatedTabTitle(navigation, 'Repairs');
-
-  const hasFilters = selectedFilters.size > 0;
 
   const sortedRepairs = useMemo(() => {
     const list = [...repairs];
@@ -145,19 +142,6 @@ export default function RepairsListScreen() {
     navigation.setOptions({
       headerRight: () => (
         <View style={{ flexDirection: 'row', marginRight: 8, gap: 4 }}>
-          <TouchableOpacity
-            style={[hdrBtn, filterVisible && hasFilters && hdrBtnActive]}
-            onPress={() => setFilterVisible(v => !v)}
-          >
-            <View>
-              <MaterialCommunityIcons name="filter-variant" size={20} color="#fff" />
-              {hasFilters && (
-                <View style={styles.filterBadge}>
-                  <Text style={styles.filterBadgeText}>{selectedFilters.size}</Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
           <TouchableOpacity style={hdrBtn} onPress={() => setSearchVisible(v => !v)}>
             <MaterialCommunityIcons name="magnify" size={20} color="#fff" />
           </TouchableOpacity>
@@ -170,7 +154,7 @@ export default function RepairsListScreen() {
         </View>
       ),
     });
-  }, [navigation, filterVisible, selectedFilters, searchVisible, sortVisible]);
+  }, [navigation, searchVisible, sortVisible]);
 
   // Keep a ref to the latest load so useFocusEffect (empty deps) can call it
   // without re-registering the focus listener on every filter/search change.
@@ -239,27 +223,6 @@ export default function RepairsListScreen() {
       )}
 
 
-      {/* Status filter chips */}
-      {filterVisible && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
-          {STATUS_FILTERS.map(f => {
-            const isAll = f.value === '';
-            const active = isAll ? !hasFilters : selectedFilters.has(f.value);
-            const accentColor = f.color ?? Colors.primary;
-            return (
-              <TouchableOpacity
-                key={f.value}
-                style={[styles.chip, active && { backgroundColor: accentColor, borderColor: accentColor }]}
-                onPress={() => toggleFilter(f.value)}
-                activeOpacity={0.75}
-              >
-                <Text style={[styles.chipLabel, active && { color: '#fff' }]}>{f.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      )}
-
       {/* Sort options */}
       {sortVisible && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterRow}>
@@ -320,16 +283,15 @@ export default function RepairsListScreen() {
           />
         )}
         ListEmptyComponent={
-          hasFilters || search ? (
+          search ? (
             <View style={{ alignItems: 'center', paddingVertical: 40 }}>
               <MaterialCommunityIcons name="filter-off-outline" size={56} color={Colors.border} />
-              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.textSecondary, marginTop: 12 }}>No repairs match the filter</Text>
-              <Text style={{ fontSize: 13, color: Colors.textSecondary, marginTop: 4, textAlign: 'center', paddingHorizontal: 24 }}>Try clearing the filter to see all repairs</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: Colors.textSecondary, marginTop: 12 }}>No repairs match the search</Text>
               <TouchableOpacity
                 style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 9, borderRadius: 20, backgroundColor: Colors.primary }}
-                onPress={() => { setSelectedFilters(new Set()); setSearch(''); setSearchVisible(false); }}
+                onPress={() => { setSearch(''); setSearchVisible(false); }}
               >
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Clear Filter</Text>
+                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Clear Search</Text>
               </TouchableOpacity>
             </View>
           ) : (
