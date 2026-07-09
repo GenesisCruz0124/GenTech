@@ -77,7 +77,7 @@ export default function RepairsListScreen() {
   const { repairs, isLoading, statusCounts, notPaidCount, fetchRepairs, advanceStatus } = useRepairStore();
   const [search, setSearch] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<Set<FilterValue>>(new Set());
-  const [dateRange, setDateRange] = useState<DateRange>('all');
+  const [dateRange, setDateRange] = useState<DateRange>('month');
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [sortVisible, setSortVisible] = useState(false);
