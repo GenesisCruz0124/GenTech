@@ -225,6 +225,14 @@ export default function MoreMenuScreen() {
           onPress={() => navigation.navigate('DevicesList')}
           style={styles.item}
         />
+        <List.Item
+          title="Consumables"
+          description="Record purchases of solder, flux, alcohol, and other supplies"
+          left={props => <List.Icon {...props} icon="flask-outline" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('Consumables')}
+          style={styles.item}
+        />
       </List.Section>
 
       <Divider />

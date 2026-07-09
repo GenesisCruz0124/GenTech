@@ -26,6 +26,7 @@ const TYPE_ICONS: Record<FinancialItem['type'], string> = {
   parts: 'package-variant',
   device: 'cellphone',
   repair_part: 'wrench',
+  consumable: 'flask-outline',
 };
 
 const CONFIG: Record<FinancialKind, {

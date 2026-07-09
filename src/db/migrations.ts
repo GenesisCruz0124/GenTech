@@ -1471,6 +1471,20 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE parts_purchases ADD COLUMN repair_id INTEGER REFERENCES repairs(id)`,
     ],
   },
+  {
+    version: 47,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS consumable_purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        quantity REAL NOT NULL DEFAULT 1,
+        unit TEXT,
+        unit_cost REAL NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_at TEXT DEFAULT (datetime('now','localtime'))
+      )`,
+    ],
+  },
 ];
 
 // All tables that participate in multi-device sync (catalog/reference tables

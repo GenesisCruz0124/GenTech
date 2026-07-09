@@ -35,6 +35,7 @@ import DevicePurchaseFormScreen from '../screens/devices/DevicePurchaseFormScree
 import DevicesScreen from '../screens/devices/DevicesScreen';
 import DeviceSaleDetailScreen from '../screens/devices/DeviceSaleDetailScreen';
 import SyncSetupScreen from '../screens/sync/SyncSetupScreen';
+import ConsumablesScreen from '../screens/consumables/ConsumablesScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -85,6 +86,7 @@ export default function RootNavigator() {
         <Stack.Screen name="DevicesList" component={DevicesScreen} options={{ title: 'Devices' }} />
         <Stack.Screen name="DeviceSaleDetail" component={DeviceSaleDetailScreen} options={{ title: 'Device Sale' }} />
         <Stack.Screen name="SyncSetup" component={SyncSetupScreen} options={{ title: 'Multi-Device Sync' }} />
+        <Stack.Screen name="Consumables" component={ConsumablesScreen} options={{ title: 'Consumables' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
