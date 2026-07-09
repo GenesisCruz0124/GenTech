@@ -1,0 +1,35 @@
+name: Release APK
+
+on:
+  push:
+    paths:
+      - 'android/app/build/outputs/apk/release/GenTech-*.apk'
+    branches:
+      - 'claude/**'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find APK
+        id: apk
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/GenTech-v*.apk | sort -V | tail -1)
+          echo "path=$APK" >> $GITHUB_OUTPUT
+          echo "name=$(basename $APK)" >> $GITHUB_OUTPUT
+          VERSION=$(basename $APK .apk | sed 's/GenTech-//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.apk.outputs.version }}
+          name: GenTech ${{ steps.apk.outputs.version }}
+          body: |
+            Android APK release built from branch `${{ github.ref_name }}`
+          files: ${{ steps.apk.outputs.path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
