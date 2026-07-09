@@ -338,28 +338,54 @@ export async function getTotalPaidDetails(period: ReportPeriod, targetDate?: str
 
 export async function getForCollectionDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
   const db = await getDB();
-  const filter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now', dateTo);
+  const repairFilter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now', dateTo);
+  const saleFilter   = currentPeriodFilter(period, 'ds.sold_at',   targetDate ?? 'now', dateTo);
 
-  const rows = await db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
-    `SELECT r.id, r.created_at as date, r.device_model, c.name as customer_name,
-            COALESCE(r.final_cost, r.estimated_cost) -
-            COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0) as amount
-     FROM repairs r
-     LEFT JOIN customers c ON c.id = r.customer_id
-     WHERE r.is_paid = 0 AND r.status = 'delivered' AND ${filter}
-     ORDER BY r.created_at DESC`
-  );
+  const [repairRows, saleRows] = await Promise.all([
+    db.getAllAsync<{ id: number; date: string; device_model: string; customer_name: string | null; amount: number }>(
+      `SELECT r.id, r.created_at as date, r.device_model, c.name as customer_name,
+              COALESCE(r.final_cost, r.estimated_cost) -
+              COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0) as amount
+       FROM repairs r
+       LEFT JOIN customers c ON c.id = r.customer_id
+       WHERE r.is_paid = 0 AND r.status = 'delivered' AND ${repairFilter}
+       ORDER BY r.created_at DESC`
+    ),
+    db.getAllAsync<{ id: number; date: string; device_name: string; device_model: string; customer_name: string | null; amount: number }>(
+      `SELECT ds.id, ds.sold_at as date, ds.device_name, ds.device_model, c.name as customer_name,
+              ds.sale_price - COALESCE((SELECT SUM(dsp.amount) FROM device_sale_payments dsp WHERE dsp.device_sale_id = ds.id), 0) as amount
+       FROM device_sales ds
+       LEFT JOIN customers c ON c.id = ds.customer_id
+       WHERE ds.sale_price > COALESCE((SELECT SUM(dsp.amount) FROM device_sale_payments dsp WHERE dsp.device_sale_id = ds.id), 0)
+         AND ${saleFilter}
+       ORDER BY ds.sold_at DESC`
+    ),
+  ]);
 
-  return rows.map(r => ({
-    id: `unpaid-${r.id}`,
-    kind: 'income' as const,
-    type: 'unpaid' as const,
-    date: r.date,
-    title: r.device_model,
-    subtitle: r.customer_name ? `Unpaid · ${r.customer_name}` : 'Unpaid',
-    amount: r.amount,
-    repair_id: r.id,
-  }));
+  const items: FinancialItem[] = [
+    ...repairRows.map(r => ({
+      id: `unpaid-${r.id}`,
+      kind: 'income' as const,
+      type: 'unpaid' as const,
+      date: r.date,
+      title: r.device_model,
+      subtitle: r.customer_name ? `Unpaid · ${r.customer_name}` : 'Unpaid',
+      amount: r.amount,
+      repair_id: r.id,
+    })),
+    ...saleRows.map(r => ({
+      id: `sale-balance-${r.id}`,
+      kind: 'income' as const,
+      type: 'device_sale' as const,
+      date: r.date,
+      title: `${r.device_name} ${r.device_model}`.trim(),
+      subtitle: r.customer_name ? `Device Sale · ${r.customer_name}` : 'Device Sale',
+      amount: r.amount,
+    })),
+  ];
+
+  items.sort((a, b) => b.date.localeCompare(a.date));
+  return items;
 }
 
 export async function getNetIncomeDetails(period: ReportPeriod, targetDate?: string, dateTo?: string): Promise<FinancialItem[]> {
@@ -485,18 +511,30 @@ export async function getTotalSummary(period: ReportPeriod, targetDate?: string,
   const rows = await getReportSummary(period, targetDate, dateTo);
   const r2 = (n: number) => Math.round(n * 100) / 100;
 
-  // Unpaid repairs filtered by current period
-  const periodFilter = currentPeriodFilter(period, 'r.created_at', targetDate ?? 'now', dateTo);
-  const unpaidRow = await db.getFirstAsync<{ count: number; amount: number }>(
-    `SELECT COUNT(*) as count,
-            COALESCE(SUM(
-              COALESCE(final_cost, estimated_cost) -
-              COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0)
-            ), 0) as amount
-     FROM repairs r
-     WHERE r.is_paid = 0 AND r.status = 'delivered'
-       AND ${periodFilter}`
-  );
+  // Unpaid repairs + device sale balances filtered by current period
+  const periodFilter    = currentPeriodFilter(period, 'r.created_at',  targetDate ?? 'now', dateTo);
+  const salePeriodFilter = currentPeriodFilter(period, 'ds.sold_at',   targetDate ?? 'now', dateTo);
+  const [unpaidRow, saleUnpaidRow] = await Promise.all([
+    db.getFirstAsync<{ count: number; amount: number }>(
+      `SELECT COUNT(*) as count,
+              COALESCE(SUM(
+                COALESCE(final_cost, estimated_cost) -
+                COALESCE((SELECT SUM(amount) FROM repair_payments rp WHERE rp.repair_id = r.id), 0)
+              ), 0) as amount
+       FROM repairs r
+       WHERE r.is_paid = 0 AND r.status = 'delivered'
+         AND ${periodFilter}`
+    ),
+    db.getFirstAsync<{ count: number; amount: number }>(
+      `SELECT COUNT(*) as count,
+              COALESCE(SUM(
+                ds.sale_price - COALESCE((SELECT SUM(dsp.amount) FROM device_sale_payments dsp WHERE dsp.device_sale_id = ds.id), 0)
+              ), 0) as amount
+       FROM device_sales ds
+       WHERE ds.sale_price > COALESCE((SELECT SUM(dsp.amount) FROM device_sale_payments dsp WHERE dsp.device_sale_id = ds.id), 0)
+         AND ${salePeriodFilter}`
+    ),
+  ]);
 
   const base = rows.reduce<TotalSummary>(
     (acc, r) => ({
@@ -513,8 +551,8 @@ export async function getTotalSummary(period: ReportPeriod, targetDate?: string,
     { gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0, total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0, parts_purchase: 0 }
   );
 
-  base.unpaid_count    = unpaidRow?.count ?? 0;
-  base.unpaid_amount   = r2(unpaidRow?.amount ?? 0);
+  base.unpaid_count    = (unpaidRow?.count ?? 0) + (saleUnpaidRow?.count ?? 0);
+  base.unpaid_amount   = r2((unpaidRow?.amount ?? 0) + (saleUnpaidRow?.amount ?? 0));
   base.net_income_cash = r2(base.total_paid - base.total_expense);
   return base;
 }
