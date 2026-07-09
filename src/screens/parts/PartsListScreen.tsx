@@ -348,6 +348,34 @@ export default function PartsListScreen() {
       <FlatList
         data={filtered}
         keyExtractor={p => String(p.id)}
+        ListHeaderComponent={filtered.length > 0 ? (() => {
+          const totalUnits = filtered.reduce((s, p) => s + p.quantity, 0);
+          const lowCount   = filtered.filter(p => p.quantity <= p.low_stock_threshold).length;
+          const totalValue = filtered.reduce((s, p) => s + p.cost_price * p.quantity, 0);
+          return (
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryVal}>{filtered.length}</Text>
+                <Text style={styles.summaryLbl}>SKUs</Text>
+              </View>
+              <View style={styles.summarySep} />
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryVal}>{totalUnits}</Text>
+                <Text style={styles.summaryLbl}>Units</Text>
+              </View>
+              <View style={styles.summarySep} />
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryVal, lowCount > 0 && styles.summaryValWarn]}>{lowCount}</Text>
+                <Text style={styles.summaryLbl}>Low Stock</Text>
+              </View>
+              <View style={styles.summarySep} />
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryVal}>{formatCurrency(totalValue)}</Text>
+                <Text style={styles.summaryLbl}>Total Value</Text>
+              </View>
+            </View>
+          );
+        })() : null}
         renderItem={({ item }) => {
           const isLow = item.quantity <= item.low_stock_threshold;
           const isSelected = selectedIds.has(item.id);
@@ -776,6 +804,26 @@ const styles = StyleSheet.create({
   actionBtnDisabled: { borderColor: Colors.border, backgroundColor: Colors.background, opacity: 0.45 },
   actions: { flexDirection: 'column', alignItems: 'center' },
   badge: { backgroundColor: Colors.warning, alignSelf: 'center', marginRight: 4 },
+  summaryCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 4,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+  },
+  summaryItem: { flex: 1, alignItems: 'center' },
+  summaryVal: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+  summaryValWarn: { color: Colors.error },
+  summaryLbl: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, fontWeight: '500' },
+  summarySep: { width: 1, backgroundColor: Colors.border, marginVertical: 4 },
   list: { paddingBottom: 80 },
   empty: { flex: 1 },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: Colors.primary },
