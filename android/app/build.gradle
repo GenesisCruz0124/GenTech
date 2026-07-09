@@ -92,8 +92,8 @@ android {
         applicationId 'com.gentech.repairshop'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 50
-        versionName "1.2.50"
+        versionCode 51
+        versionName "1.2.51"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }

@@ -22,7 +22,9 @@ import ShopInfoScreen from '../screens/more/ShopInfoScreen';
 import BackupScreen from '../screens/more/BackupScreen';
 import StaffListScreen from '../screens/staff/StaffListScreen';
 import StaffPerformanceScreen from '../screens/staff/StaffPerformanceScreen';
+import SupplierListScreen from '../screens/suppliers/SupplierListScreen';
 import SupplierDetailScreen from '../screens/suppliers/SupplierDetailScreen';
+import CoTechListScreen from '../screens/cotech/CoTechListScreen';
 import CoTechDetailScreen from '../screens/cotech/CoTechDetailScreen';
 import LicenseScreen from '../screens/more/LicenseScreen';
 import PriceInquiryScreen from '../screens/suppliers/PriceInquiryScreen';
@@ -71,7 +73,9 @@ export default function RootNavigator() {
         <Stack.Screen name="Backup" component={BackupScreen} options={{ title: 'Backup & Restore' }} />
         <Stack.Screen name="StaffList" component={StaffListScreen} options={{ title: 'Staff' }} />
         <Stack.Screen name="StaffPerformance" component={StaffPerformanceScreen} options={{ title: 'Staff Performance' }} />
+        <Stack.Screen name="SupplierList" component={SupplierListScreen} options={{ title: 'Suppliers' }} />
         <Stack.Screen name="SupplierDetail" component={SupplierDetailScreen} options={{ title: 'Supplier Details' }} />
+        <Stack.Screen name="CoTechList" component={CoTechListScreen} options={{ title: 'Co-Technicians' }} />
         <Stack.Screen name="CoTechDetail" component={CoTechDetailScreen} options={{ title: 'Co-Tech Details' }} />
         <Stack.Screen name="License" component={LicenseScreen} options={{ title: 'Upgrade to Pro' }} />
         <Stack.Screen name="PriceInquiry" component={PriceInquiryScreen} options={{ title: 'Price Inquiry' }} />

@@ -184,6 +184,36 @@ export default function MoreMenuScreen() {
       <Divider />
 
       <List.Section>
+        <List.Subheader style={styles.subheader}>People</List.Subheader>
+        <List.Item
+          title="Customers"
+          description="View and manage customer records"
+          left={props => <List.Icon {...props} icon="account-group" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('CustomerList')}
+          style={styles.item}
+        />
+        <List.Item
+          title="Suppliers"
+          description="View and manage parts suppliers"
+          left={props => <List.Icon {...props} icon="truck-delivery-outline" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('SupplierList')}
+          style={styles.item}
+        />
+        <List.Item
+          title="Co-Technicians"
+          description="View and manage co-tech collaborators"
+          left={props => <List.Icon {...props} icon="account-hard-hat-outline" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('CoTechList')}
+          style={styles.item}
+        />
+      </List.Section>
+
+      <Divider />
+
+      <List.Section>
         <List.Subheader style={styles.subheader}>Manage</List.Subheader>
         <List.Item
           title="Brands"

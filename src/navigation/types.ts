@@ -17,7 +17,9 @@ export type RootStackParamList = {
   Backup: undefined;
   StaffList: undefined;
   StaffPerformance: { staffId?: number };
+  SupplierList: undefined;
   SupplierDetail: { supplierId: number };
+  CoTechList: undefined;
   CoTechDetail: { coTechId: number };
   License: undefined;
   PriceInquiry: undefined;
@@ -35,10 +37,7 @@ export type RootStackParamList = {
 
 export type TabParamList = {
   Dashboard: undefined;
-  Customers: undefined;
   Repairs: { initialFilter?: string; dateFrom?: string; dateTo?: string; navKey?: number } | undefined;
   Parts: undefined;
-  Suppliers: undefined;
-  CoTech: undefined;
   More: undefined;
 };
