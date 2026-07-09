@@ -8,7 +8,6 @@ import {
   ConsumableGroup,
   addConsumablePurchase,
   updateConsumablePurchase,
-  archiveConsumablePurchase,
   deleteConsumablePurchase,
   listConsumableGroups,
   getConsumableHistory,
@@ -44,7 +43,6 @@ export default function ConsumablesScreen() {
 
   // Delete modals
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<ConsumableGroup | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ConsumablePurchase | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,28 +135,13 @@ export default function ConsumablesScreen() {
     await load();
   };
 
-  // Individual purchase delete (from history modal)
-  const refreshHistory = async (groupName: string) => {
-    const updated = await getConsumableHistory(groupName);
+  // Individual purchase delete — direct remove (from history modal)
+  const handleDeletePurchase = async (item: ConsumablePurchase) => {
+    await deleteConsumablePurchase(item.id);
+    const updated = await getConsumableHistory(item.name);
     setHistoryItems(updated);
     if (updated.length === 0) setHistoryVisible(false);
     await load();
-  };
-
-  const handleKeepAsExpense = async () => {
-    if (!deleteTarget) return;
-    const groupName = deleteTarget.name;
-    await archiveConsumablePurchase(deleteTarget.id);
-    setDeleteTarget(null);
-    await refreshHistory(groupName);
-  };
-
-  const handleDeleteCompletely = async () => {
-    if (!deleteTarget) return;
-    const groupName = deleteTarget.name;
-    await deleteConsumablePurchase(deleteTarget.id);
-    setDeleteTarget(null);
-    await refreshHistory(groupName);
   };
 
   const totalSpent = groups.reduce((sum, g) => sum + g.total_spent, 0);
@@ -250,7 +233,7 @@ export default function ConsumablesScreen() {
                     <TouchableOpacity onPress={() => openEdit(item)} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
                       <MaterialCommunityIcons name="pencil-outline" size={16} color={Colors.primary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => setDeleteTarget(item)} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                    <TouchableOpacity onPress={() => handleDeletePurchase(item)} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
                       <MaterialCommunityIcons name="trash-can-outline" size={16} color={Colors.error} />
                     </TouchableOpacity>
                   </View>
@@ -388,38 +371,6 @@ export default function ConsumablesScreen() {
         </Modal>
       </Portal>
 
-      {/* Individual purchase delete modal (from history) */}
-      <Portal>
-        <Modal visible={!!deleteTarget} onDismiss={() => setDeleteTarget(null)} contentContainerStyle={styles.deleteModal}>
-          <Text style={styles.deleteTitle}>Remove Record</Text>
-          <Text style={styles.deleteName}>{deleteTarget?.name}</Text>
-          <Text style={styles.deleteSubtitle}>
-            {deleteTarget ? `${deleteTarget.quantity} ${deleteTarget.unit ?? 'pcs'} · ${formatCurrency(deleteTarget.unit_cost * deleteTarget.quantity)}` : ''}
-          </Text>
-
-          <TouchableOpacity style={styles.deleteOption} onPress={handleKeepAsExpense} activeOpacity={0.75}>
-            <View style={[styles.deleteOptionIcon, { backgroundColor: Colors.primary + '15' }]}>
-              <MaterialCommunityIcons name="receipt-text-check-outline" size={22} color={Colors.primary} />
-            </View>
-            <View style={styles.deleteOptionText}>
-              <Text style={[styles.deleteOptionLabel, { color: Colors.primary }]}>Keep as Expense</Text>
-              <Text style={styles.deleteOptionDesc}>Remove from list — amount stays in expense reports</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.deleteOption, styles.deleteOptionDanger]} onPress={handleDeleteCompletely} activeOpacity={0.75}>
-            <View style={[styles.deleteOptionIcon, { backgroundColor: Colors.error + '15' }]}>
-              <MaterialCommunityIcons name="trash-can-outline" size={22} color={Colors.error} />
-            </View>
-            <View style={styles.deleteOptionText}>
-              <Text style={[styles.deleteOptionLabel, { color: Colors.error }]}>Delete Completely</Text>
-              <Text style={styles.deleteOptionDesc}>Remove from list and from expense reports</Text>
-            </View>
-          </TouchableOpacity>
-
-          <Button mode="text" onPress={() => setDeleteTarget(null)} style={{ marginTop: 4 }}>Cancel</Button>
-        </Modal>
-      </Portal>
     </>
   );
 }
