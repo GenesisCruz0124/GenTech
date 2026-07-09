@@ -2,19 +2,17 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { FAB, Searchbar, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
-import { useFilterStore } from '../../store/filterStore';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList, TabParamList } from '../../navigation/types';
-import { useRepairStore, consumeRepairJustCreated } from '../../store/repairStore';
+import { RootStackParamList } from '../../navigation/types';
+import { useRepairStore, consumeRepairJustCreated, consumePendingDashboardFilter } from '../../store/repairStore';
 import RepairCard from '../../components/repairs/RepairCard';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
 import { RepairStatus, STATUS_COLORS } from '../../constants/statusOptions';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-type RepairsRoute = RouteProp<TabParamList, 'Repairs'>;
 
 type FilterValue = RepairStatus | '' | 'not_paid';
 type DateRange = 'all' | 'today' | 'week' | 'month';
@@ -75,7 +73,6 @@ const hdrBtnActive: any = { backgroundColor: 'rgba(255,255,255,0.4)' };
 
 export default function RepairsListScreen() {
   const navigation = useNavigation<Nav>();
-  const route = useRoute<RepairsRoute>();
   const { repairs, isLoading, statusCounts, notPaidCount, fetchRepairs, advanceStatus } = useRepairStore();
   const [search, setSearch] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<Set<FilterValue>>(new Set());
@@ -85,7 +82,6 @@ export default function RepairsListScreen() {
   const [sortVisible, setSortVisible] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   useAnimatedTabTitle(navigation, 'Repairs');
-  const { getTargetDateIso: _getTargetDateIso } = useFilterStore(); // kept for import but not used in repairs list
 
   const hasFilters = selectedFilters.size > 0;
 
@@ -175,55 +171,33 @@ export default function RepairsListScreen() {
     });
   }, [navigation, filterVisible, selectedFilters, searchVisible, sortVisible]);
 
-  // Always keep a ref to the latest load so useFocusEffect can call it without
-  // taking load as a dependency (which would re-fire useFocusEffect on every filter change).
+  // Keep a ref to the latest load so useFocusEffect (empty deps) can call it
+  // without re-registering the focus listener on every filter/search change.
   const loadRef = useRef(load);
   useEffect(() => { loadRef.current = load; }, [load]);
 
-  // Track the last navKey we've already processed so we know when a new
-  // dashboard navigation is pending vs already handled.
-  const lastSeenNavKey = useRef<number | undefined>(undefined);
-
-  // Computed DURING RENDER (synchronously, before any effects) so useFocusEffect
-  // can always read the correct value regardless of effect firing order.
-  const incomingNavKey = route.params?.navKey;
-  const hasPendingDashboardParams =
-    incomingNavKey !== undefined && incomingNavKey !== lastSeenNavKey.current;
-  const hasPendingRef = useRef(hasPendingDashboardParams);
-  hasPendingRef.current = hasPendingDashboardParams;
-
-  // Blocks useEffect([load]) from overriding the period-filtered fetch when
-  // the params effect calls setSelectedFilters (which changes the load reference).
+  // Blocks useEffect([load]) once after setSelectedFilters is called from
+  // within useFocusEffect, preventing a second unfiltered fetch.
   const skipNextLoadEffect = useRef(false);
 
-  // Apply filter from dashboard navigation — navKey changes on every tap so this
-  // always re-fires even when initialFilter stays the same (e.g. repeated "Total Repairs" taps).
-  useEffect(() => {
-    const navKey = route.params?.navKey;
-    if (navKey === undefined) return;
-    lastSeenNavKey.current = navKey; // mark as handled
-    const incoming = (route.params?.initialFilter ?? '') as FilterValue;
-    const dateFrom = route.params?.dateFrom as string | undefined;
-    const dateTo = route.params?.dateTo as string | undefined;
-    skipNextLoadEffect.current = true;
-    if (incoming === '') {
-      setSelectedFilters(new Set());
-      fetchRepairs({ dateFrom, dateTo });
-      return;
-    }
-    setSelectedFilters(new Set([incoming as FilterValue]));
-    if (incoming === 'not_paid') {
-      fetchRepairs({ not_paid: true, dateFrom, dateTo });
-    } else {
-      fetchRepairs({ status: incoming as RepairStatus, dateFrom, dateTo });
-    }
-  }, [route.params?.navKey]);
-
-  // Reload on focus — hasPendingRef is set synchronously during render so it is
-  // always current here even if this fires before the params effect.
+  // Fires on every focus event. Dashboard sets a module-level pending filter
+  // BEFORE calling navigate(), so it is always populated by the time this runs —
+  // no race condition with params effects or renders.
   useFocusEffect(useCallback(() => {
-    if (hasPendingRef.current) {
-      // Dashboard navigation incoming — params effect will run the filtered fetch.
+    const pending = consumePendingDashboardFilter();
+    if (pending) {
+      skipNextLoadEffect.current = true;
+      const incoming = pending.filter as FilterValue;
+      if (incoming === '') {
+        setSelectedFilters(new Set());
+        fetchRepairs({ dateFrom: pending.dateFrom, dateTo: pending.dateTo });
+      } else if (incoming === 'not_paid') {
+        setSelectedFilters(new Set([incoming]));
+        fetchRepairs({ not_paid: true, dateFrom: pending.dateFrom, dateTo: pending.dateTo });
+      } else {
+        setSelectedFilters(new Set([incoming]));
+        fetchRepairs({ status: incoming as RepairStatus, dateFrom: pending.dateFrom, dateTo: pending.dateTo });
+      }
       return;
     }
     if (consumeRepairJustCreated()) {
@@ -234,8 +208,9 @@ export default function RepairsListScreen() {
     loadRef.current();
   }, []));
 
-  // Reload when filters/search/dateRange change interactively — blocked once after
-  // the params effect fires to prevent overriding the period-filtered fetch.
+  // Reload when filters/search/dateRange change interactively — skipped once
+  // after useFocusEffect applies a dashboard filter (so setSelectedFilters
+  // changing load's reference doesn't trigger a second unfiltered fetch).
   useEffect(() => {
     if (skipNextLoadEffect.current) {
       skipNextLoadEffect.current = false;

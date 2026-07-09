@@ -7,6 +7,23 @@ export function consumeRepairJustCreated(): boolean {
   repairJustCreated = false;
   return val;
 }
+
+// Module-level pending filter set by Dashboard BEFORE navigation so it is
+// available to useFocusEffect regardless of when the focus event fires.
+export interface PendingDashboardFilter {
+  filter: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+let _pendingDashboardFilter: PendingDashboardFilter | null = null;
+export function setPendingDashboardFilter(f: PendingDashboardFilter): void {
+  _pendingDashboardFilter = f;
+}
+export function consumePendingDashboardFilter(): PendingDashboardFilter | null {
+  const f = _pendingDashboardFilter;
+  _pendingDashboardFilter = null;
+  return f;
+}
 import {
   RepairWithCustomer,
   CreateRepairInput,

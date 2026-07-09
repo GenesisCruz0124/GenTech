@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
 import { useFilterStore } from '../../store/filterStore';
-import { useRepairStore } from '../../store/repairStore';
+import { useRepairStore, setPendingDashboardFilter } from '../../store/repairStore';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import {
@@ -162,6 +162,9 @@ export default function DashboardScreen() {
 
   const goRepairs = (filter: string) => {
     const { dateFrom, dateTo } = getDateRange();
+    // Set BEFORE navigation so the value is ready when useFocusEffect fires on the Repairs tab,
+    // regardless of whether that fires before or after the params effect.
+    setPendingDashboardFilter({ filter, dateFrom, dateTo });
     navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter, dateFrom, dateTo, navKey: Date.now() } } as any);
   };
 
