@@ -6,6 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   ConsumablePurchase,
   addConsumablePurchase,
+  updateConsumablePurchase,
   listConsumablePurchases,
   deleteConsumablePurchase,
 } from '../../repositories/consumablesRepository';
@@ -26,6 +27,7 @@ export default function ConsumablesScreen() {
   const [unitCost, setUnitCost] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [editTarget, setEditTarget] = useState<ConsumablePurchase | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ConsumablePurchase | null>(null);
   const [showUnitSuggestions, setShowUnitSuggestions] = useState(false);
 
@@ -41,7 +43,19 @@ export default function ConsumablesScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const openModal = () => {
+    setEditTarget(null);
     setName(''); setQuantity('1'); setUnit('pcs'); setUnitCost(''); setNotes('');
+    setShowUnitSuggestions(false);
+    setModalVisible(true);
+  };
+
+  const openEdit = (item: ConsumablePurchase) => {
+    setEditTarget(item);
+    setName(item.name);
+    setQuantity(String(item.quantity));
+    setUnit(item.unit ?? 'pcs');
+    setUnitCost(String(item.unit_cost));
+    setNotes(item.notes ?? '');
     setShowUnitSuggestions(false);
     setModalVisible(true);
   };
@@ -50,13 +64,18 @@ export default function ConsumablesScreen() {
     if (!name.trim() || !unitCost.trim()) return;
     setSubmitting(true);
     try {
-      await addConsumablePurchase({
+      const data = {
         name: name.trim(),
         quantity: parseFloat(quantity) || 1,
         unit: unit.trim() || undefined,
         unit_cost: parseFloat(unitCost) || 0,
         notes: notes.trim() || undefined,
-      });
+      };
+      if (editTarget) {
+        await updateConsumablePurchase(editTarget.id, data);
+      } else {
+        await addConsumablePurchase(data);
+      }
       await load();
       setModalVisible(false);
     } finally {
@@ -96,6 +115,7 @@ export default function ConsumablesScreen() {
             title={item.name}
             description={`${formatDate(item.created_at)} · ${item.quantity} ${item.unit ?? 'pcs'}${item.notes ? ` · ${item.notes}` : ''}`}
             left={props => <List.Icon {...props} icon="flask-outline" color={Colors.warning} />}
+            onPress={() => openEdit(item)}
             right={() => (
               <View style={styles.rightCol}>
                 <Text style={styles.amount}>{formatCurrency(item.unit_cost * item.quantity)}</Text>
@@ -124,7 +144,7 @@ export default function ConsumablesScreen() {
         <Modal visible={modalVisible} onDismiss={() => setModalVisible(false)} contentContainerStyle={styles.modal}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>Record Consumable</Text>
+              <Text style={styles.modalTitle}>{editTarget ? 'Edit Consumable' : 'Record Consumable'}</Text>
 
               <TextInput
                 label="Item Name *"
@@ -201,7 +221,7 @@ export default function ConsumablesScreen() {
                   style={{ flex: 1 }}
                   icon="check"
                 >
-                  Save
+                  {editTarget ? 'Update' : 'Save'}
                 </Button>
               </View>
             </ScrollView>

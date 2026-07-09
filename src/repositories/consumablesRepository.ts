@@ -32,6 +32,20 @@ export async function addConsumablePurchase(data: {
   return result.lastInsertRowId;
 }
 
+export async function updateConsumablePurchase(id: number, data: {
+  name: string;
+  quantity: number;
+  unit?: string;
+  unit_cost: number;
+  notes?: string;
+}): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `UPDATE consumable_purchases SET name = ?, quantity = ?, unit = ?, unit_cost = ?, notes = ? WHERE id = ?`,
+    [data.name, data.quantity, data.unit ?? null, data.unit_cost, data.notes ?? null, id]
+  );
+}
+
 export async function deleteConsumablePurchase(id: number): Promise<void> {
   const db = await getDB();
   await db.runAsync(`DELETE FROM consumable_purchases WHERE id = ?`, [id]);
