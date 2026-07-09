@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
 import { useFilterStore } from '../../store/filterStore';
-import { useRepairStore, setPendingDashboardFilter } from '../../store/repairStore';
+
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import {
@@ -58,7 +58,6 @@ export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
   useAnimatedTabTitle(navigation, 'Stats');
 
-  const { statusCounts, notPaidCount, fetchStatusCounts } = useRepairStore();
   const { setPeriod: setGlobalPeriod, setTargetDate: setGlobalTargetDate } = useFilterStore();
 
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
@@ -126,7 +125,6 @@ export default function DashboardScreen() {
       const [s, daily] = await Promise.all([
         getTotalSummary(period, dateFrom, dateTo),
         getDailyRepairStats(),
-        fetchStatusCounts(dateFrom, dateTo),
       ]);
       setSummary(s);
       setDailyStats(daily);
@@ -143,20 +141,6 @@ export default function DashboardScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const isPositive = summary.net_income >= 0;
-  const totalRepairs =
-    (statusCounts.pending ?? 0) +
-    (statusCounts.in_progress ?? 0) +
-    (statusCounts.ready ?? 0) +
-    (statusCounts.delivered ?? 0) +
-    (statusCounts.not_repaired ?? 0);
-
-  const goRepairs = (filter: string) => {
-    const { dateFrom, dateTo } = getDateRange();
-    // Set BEFORE navigation so the value is ready when useFocusEffect fires on the Repairs tab,
-    // regardless of whether that fires before or after the params effect.
-    setPendingDashboardFilter({ filter, dateFrom, dateTo });
-    navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter, dateFrom, dateTo, navKey: Date.now() } } as any);
-  };
 
   const goFinancialDetail = (kind: FinancialKind) => {
     const { dateFrom, dateTo } = getDateRange();
@@ -288,25 +272,6 @@ export default function DashboardScreen() {
         <Text style={styles.stockAmount}>{formatCurrency(summary.parts_purchase)}</Text>
       </TouchableOpacity>
 
-      {/* ── REPAIR OVERVIEW ───────────────────────── */}
-      <TouchableOpacity style={styles.totalTile} onPress={() => goRepairs('')} activeOpacity={0.85}>
-        <MaterialCommunityIcons name="wrench-clock" size={20} color="#fff" />
-        <Text style={styles.totalCount}>{totalRepairs}</Text>
-        <Text style={styles.totalLabel}>Total Repairs</Text>
-        <MaterialCommunityIcons name="chevron-right" size={18} color="rgba(255,255,255,0.6)" style={{ marginLeft: 'auto' }} />
-      </TouchableOpacity>
-
-      <View style={styles.tileRow}>
-        <StatTile label="Pending"     count={statusCounts.pending ?? 0}      color="#FF6F00"            icon="clock-outline"        onPress={() => goRepairs('pending')} />
-        <StatTile label="In Progress" count={statusCounts.in_progress ?? 0}  color={Colors.primary}     icon="wrench"               onPress={() => goRepairs('in_progress')} />
-        <StatTile label="Ready"       count={statusCounts.ready ?? 0}        color={Colors.success}     icon="check-circle-outline" onPress={() => goRepairs('ready')} />
-      </View>
-      <View style={styles.tileRow}>
-        <StatTile label="Delivered"   count={statusCounts.delivered ?? 0}    color={Colors.textSecondary} icon="package-check"       onPress={() => goRepairs('delivered')} />
-        <StatTile label="Not Repaired" count={statusCounts.not_repaired ?? 0} color={Colors.error}      icon="close-circle-outline" onPress={() => goRepairs('not_repaired')} />
-        <StatTile label="Not Paid"    count={notPaidCount}                    color={Colors.warning}     icon="cash-remove"          onPress={() => goRepairs('not_paid')} />
-      </View>
-
       {/* ── 7-DAY BAR CHART ──────────────────────── */}
       {dailyStats.length > 0 && (() => {
         const maxVal = Math.max(1, ...dailyStats.map(d => Math.max(d.recorded, d.delivered)));
@@ -354,16 +319,6 @@ export default function DashboardScreen() {
 
       <View style={{ height: 32 }} />
     </ScrollView>
-  );
-}
-
-function StatTile({ label, count, color, icon, onPress }: { label: string; count: number; color: string; icon: string; onPress?: () => void }) {
-  return (
-    <TouchableOpacity style={[styles.statTile, { borderTopColor: color }]} onPress={onPress} activeOpacity={onPress ? 0.75 : 1}>
-      <MaterialCommunityIcons name={icon as any} size={22} color={color} style={styles.statIcon} />
-      <Text style={[styles.statCount, { color }]}>{count}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </TouchableOpacity>
   );
 }
 
@@ -509,39 +464,4 @@ const styles = StyleSheet.create({
   stockSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
   stockAmount: { fontSize: 16, fontWeight: '800', color: Colors.primary },
 
-  // ── Total tile
-  totalTile: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    elevation: 3,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  totalCount: { fontSize: 28, fontWeight: '800', color: '#fff' },
-  totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500', flex: 1 },
-
-  // ── Status tiles
-  tileRow: { flexDirection: 'row', gap: 8 },
-  statTile: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-    borderTopWidth: 3,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-  },
-  statIcon: { marginBottom: 6 },
-  statCount: { fontSize: 26, fontWeight: '800', lineHeight: 30 },
-  statLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 3, textAlign: 'center', fontWeight: '500' },
 });
