@@ -180,9 +180,10 @@ export default function RepairsListScreen() {
   const loadRef = useRef(load);
   useEffect(() => { loadRef.current = load; }, [load]);
 
-  // Skip flag: set by the params effect below so the focus event that fires when
-  // navigating back to this tab doesn't override the dashboard-driven filtered fetch.
+  // Skip flags — set together by the params effect so neither the focus reload nor
+  // the load-change effect can override the dashboard-driven filtered fetch.
   const skipNextFocusLoad = useRef(false);
+  const skipNextLoadEffect = useRef(false);
 
   // Apply filter from dashboard navigation — navKey changes on every tap so this
   // always re-fires even when initialFilter stays the same (e.g. repeated "Total Repairs" taps).
@@ -193,6 +194,7 @@ export default function RepairsListScreen() {
     const dateFrom = route.params?.dateFrom as string | undefined;
     const dateTo = route.params?.dateTo as string | undefined;
     skipNextFocusLoad.current = true;
+    skipNextLoadEffect.current = true;
     if (incoming === '') {
       setSelectedFilters(new Set());
       fetchRepairs({ dateFrom, dateTo });
@@ -220,7 +222,13 @@ export default function RepairsListScreen() {
     loadRef.current();
   }, []));
 
+  // Reload when filters/search/dateRange change interactively — blocked once after
+  // the params effect fires to prevent overriding the period-filtered fetch.
   useEffect(() => {
+    if (skipNextLoadEffect.current) {
+      skipNextLoadEffect.current = false;
+      return;
+    }
     load();
   }, [load]);
 
