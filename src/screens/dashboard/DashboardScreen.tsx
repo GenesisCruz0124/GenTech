@@ -56,7 +56,7 @@ function getWeekRange(date: Date): { start: Date; end: Date } {
 
 export default function DashboardScreen() {
   const navigation = useNavigation<Nav>();
-  useAnimatedTabTitle(navigation, 'Dashboard');
+  useAnimatedTabTitle(navigation, 'Stats');
 
   const { statusCounts, notPaidCount, fetchStatusCounts } = useRepairStore();
   const { setPeriod: setGlobalPeriod, setTargetDate: setGlobalTargetDate } = useFilterStore();

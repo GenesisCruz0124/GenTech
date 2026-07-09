@@ -26,7 +26,7 @@ export default function BottomTabNavigator() {
         tabBarStyle: { backgroundColor: Colors.surface, borderTopColor: Colors.border },
         tabBarIcon: ({ color, size }) => {
           const icons: Record<string, string> = {
-            Dashboard:  'view-dashboard',
+            Dashboard:  'chart-bar',
             Customers:  'account-group',
             Repairs:    'wrench',
             Parts:      'package-variant',
@@ -44,8 +44,8 @@ export default function BottomTabNavigator() {
         },
       })}
     >
-      <Tab.Screen name="Dashboard"  component={DashboardScreen}    options={{ title: 'GenTech Repairs Monitoring', tabBarLabel: 'Dashboard' }} />
       <Tab.Screen name="Repairs"    component={RepairsListScreen}   options={{ title: 'Repairs' }} />
+      <Tab.Screen name="Dashboard"  component={DashboardScreen}    options={{ title: 'GenTech Stats', tabBarLabel: 'Stats' }} />
       <Tab.Screen name="Customers"  component={CustomerListScreen}  options={{ title: 'Customers' }} />
       <Tab.Screen name="Suppliers"  component={SupplierListScreen}  options={{ title: 'Suppliers' }} />
       <Tab.Screen name="Parts"      component={PartsListScreen}     options={{ title: 'Stocks', tabBarLabel: 'Stocks' }} />
