@@ -1,15 +1,19 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, FAB, List, Modal, Portal, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   ConsumablePurchase,
+  ConsumableGroup,
   addConsumablePurchase,
   updateConsumablePurchase,
   archiveConsumablePurchase,
-  listConsumablePurchases,
   deleteConsumablePurchase,
+  listConsumableGroups,
+  getConsumableHistory,
+  archiveConsumablesByName,
+  deleteConsumablesByName,
 } from '../../repositories/consumablesRepository';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
@@ -18,8 +22,10 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 const UNIT_SUGGESTIONS = ['pcs', 'ml', 'L', 'g', 'kg', 'roll', 'sheet', 'tube', 'bottle', 'pack', 'box'];
 
 export default function ConsumablesScreen() {
-  const [items, setItems] = useState<ConsumablePurchase[]>([]);
+  const [groups, setGroups] = useState<ConsumableGroup[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Add / Edit modal
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('1');
@@ -28,13 +34,22 @@ export default function ConsumablesScreen() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [editTarget, setEditTarget] = useState<ConsumablePurchase | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ConsumablePurchase | null>(null);
   const [showUnitSuggestions, setShowUnitSuggestions] = useState(false);
+
+  // History modal
+  const [historyVisible, setHistoryVisible] = useState(false);
+  const [historyGroup, setHistoryGroup] = useState<ConsumableGroup | null>(null);
+  const [historyItems, setHistoryItems] = useState<ConsumablePurchase[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Delete modals
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<ConsumableGroup | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ConsumablePurchase | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setItems(await listConsumablePurchases());
+      setGroups(await listConsumableGroups());
     } finally {
       setLoading(false);
     }
@@ -49,6 +64,18 @@ export default function ConsumablesScreen() {
     setModalVisible(true);
   };
 
+  const openRestock = (group: ConsumableGroup) => {
+    setEditTarget(null);
+    setName(group.name);
+    setQuantity('1');
+    setUnit(group.unit ?? 'pcs');
+    setUnitCost(String(group.latest_unit_cost));
+    setNotes('');
+    setShowUnitSuggestions(false);
+    setHistoryVisible(false);
+    setModalVisible(true);
+  };
+
   const openEdit = (item: ConsumablePurchase) => {
     setEditTarget(item);
     setName(item.name);
@@ -57,7 +84,19 @@ export default function ConsumablesScreen() {
     setUnitCost(String(item.unit_cost));
     setNotes(item.notes ?? '');
     setShowUnitSuggestions(false);
+    setHistoryVisible(false);
     setModalVisible(true);
+  };
+
+  const openHistory = async (group: ConsumableGroup) => {
+    setHistoryGroup(group);
+    setHistoryVisible(true);
+    setHistoryLoading(true);
+    try {
+      setHistoryItems(await getConsumableHistory(group.name));
+    } finally {
+      setHistoryLoading(false);
+    }
   };
 
   const handleSave = async () => {
@@ -83,21 +122,46 @@ export default function ConsumablesScreen() {
     }
   };
 
+  // Group-level delete (all purchases with same name)
+  const handleGroupKeepAsExpense = async () => {
+    if (!deleteGroupTarget) return;
+    await archiveConsumablesByName(deleteGroupTarget.name);
+    setDeleteGroupTarget(null);
+    await load();
+  };
+
+  const handleGroupDeleteCompletely = async () => {
+    if (!deleteGroupTarget) return;
+    await deleteConsumablesByName(deleteGroupTarget.name);
+    setDeleteGroupTarget(null);
+    await load();
+  };
+
+  // Individual purchase delete (from history modal)
+  const refreshHistory = async (groupName: string) => {
+    const updated = await getConsumableHistory(groupName);
+    setHistoryItems(updated);
+    if (updated.length === 0) setHistoryVisible(false);
+    await load();
+  };
+
   const handleKeepAsExpense = async () => {
     if (!deleteTarget) return;
+    const groupName = deleteTarget.name;
     await archiveConsumablePurchase(deleteTarget.id);
     setDeleteTarget(null);
-    await load();
+    await refreshHistory(groupName);
   };
 
   const handleDeleteCompletely = async () => {
     if (!deleteTarget) return;
+    const groupName = deleteTarget.name;
     await deleteConsumablePurchase(deleteTarget.id);
     setDeleteTarget(null);
-    await load();
+    await refreshHistory(groupName);
   };
 
-  const totalSpent = items.reduce((sum, i) => sum + i.quantity * i.unit_cost, 0);
+  const totalSpent = groups.reduce((sum, g) => sum + g.total_spent, 0);
   const computedTotal = (parseFloat(quantity) || 1) * (parseFloat(unitCost) || 0);
   const unitSuggestions = UNIT_SUGGESTIONS.filter(
     u => u.toLowerCase().startsWith(unit.toLowerCase()) && u.toLowerCase() !== unit.toLowerCase()
@@ -107,33 +171,39 @@ export default function ConsumablesScreen() {
     <>
       <FlatList
         style={styles.container}
-        data={items}
-        keyExtractor={i => String(i.id)}
+        data={groups}
+        keyExtractor={g => g.name}
         refreshing={loading}
         onRefresh={load}
-        ListHeaderComponent={items.length > 0 ? (
+        ListHeaderComponent={groups.length > 0 ? (
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total Spent</Text>
             <Text style={styles.totalValue}>{formatCurrency(totalSpent)}</Text>
           </View>
         ) : null}
-        renderItem={({ item }) => (
+        renderItem={({ item: group }) => (
           <List.Item
-            title={item.name}
-            description={`${formatDate(item.created_at)} · ${item.quantity} ${item.unit ?? 'pcs'}${item.notes ? ` · ${item.notes}` : ''}`}
+            title={group.name}
+            description={`Last: ${formatDate(group.last_purchase)} · ${group.total_qty} ${group.unit ?? 'pcs'} total · ${group.purchase_count} purchase${group.purchase_count !== 1 ? 's' : ''}`}
             left={props => <List.Icon {...props} icon="flask-outline" color={Colors.warning} />}
-            onPress={() => openEdit(item)}
+            onPress={() => openHistory(group)}
             right={() => (
               <View style={styles.rightCol}>
-                <Text style={styles.amount}>{formatCurrency(item.unit_cost * item.quantity)}</Text>
-                <Text style={styles.unitCostText}>₱{item.unit_cost}/{item.unit ?? 'pcs'}</Text>
-                <TouchableOpacity
-                  onPress={() => setDeleteTarget(item)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  style={{ marginTop: 2 }}
-                >
-                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={Colors.error} />
-                </TouchableOpacity>
+                <Text style={styles.amount}>{formatCurrency(group.total_spent)}</Text>
+                <View style={styles.rowActions}>
+                  <TouchableOpacity
+                    onPress={() => openRestock(group)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialCommunityIcons name="cart-plus" size={18} color={Colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setDeleteGroupTarget(group)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={18} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
             style={styles.item}
@@ -142,10 +212,56 @@ export default function ConsumablesScreen() {
         ListEmptyComponent={
           <EmptyState icon="flask-outline" title="No consumables recorded" subtitle="Tap + to log a purchase" />
         }
-        contentContainerStyle={items.length === 0 ? styles.empty : styles.list}
+        contentContainerStyle={groups.length === 0 ? styles.empty : styles.list}
       />
 
       <FAB icon="plus" style={styles.fab} onPress={openModal} />
+
+      {/* History modal */}
+      <Portal>
+        <Modal visible={historyVisible} onDismiss={() => setHistoryVisible(false)} contentContainerStyle={styles.modal}>
+          <View style={styles.historyHeader}>
+            <Text style={styles.modalTitle}>{historyGroup?.name}</Text>
+            <Button
+              mode="contained"
+              compact
+              icon="cart-plus"
+              onPress={() => historyGroup && openRestock(historyGroup)}
+            >
+              Restock
+            </Button>
+          </View>
+
+          {historyLoading ? (
+            <ActivityIndicator style={{ padding: 24 }} color={Colors.primary} />
+          ) : (
+            <ScrollView style={styles.historyList} showsVerticalScrollIndicator={false}>
+              {historyItems.map(item => (
+                <View key={item.id} style={styles.historyRow}>
+                  <View style={styles.historyLeft}>
+                    <Text style={styles.historyDate}>{formatDate(item.created_at)}</Text>
+                    <Text style={styles.historyDesc}>
+                      {item.quantity} {item.unit ?? 'pcs'} × ₱{item.unit_cost}
+                      {item.notes ? ` · ${item.notes}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.historyAmount}>{formatCurrency(item.quantity * item.unit_cost)}</Text>
+                  <View style={styles.historyActions}>
+                    <TouchableOpacity onPress={() => openEdit(item)} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                      <MaterialCommunityIcons name="pencil-outline" size={16} color={Colors.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setDeleteTarget(item)} hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={16} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+
+          <Button mode="text" onPress={() => setHistoryVisible(false)} style={{ marginTop: 8 }}>Close</Button>
+        </Modal>
+      </Portal>
 
       {/* Add / Edit modal */}
       <Portal>
@@ -237,7 +353,42 @@ export default function ConsumablesScreen() {
         </Modal>
       </Portal>
 
-      {/* Delete options modal */}
+      {/* Group delete modal */}
+      <Portal>
+        <Modal visible={!!deleteGroupTarget} onDismiss={() => setDeleteGroupTarget(null)} contentContainerStyle={styles.deleteModal}>
+          <Text style={styles.deleteTitle}>Remove All Records</Text>
+          <Text style={styles.deleteName}>{deleteGroupTarget?.name}</Text>
+          <Text style={styles.deleteSubtitle}>
+            {deleteGroupTarget
+              ? `${deleteGroupTarget.purchase_count} purchase${deleteGroupTarget.purchase_count !== 1 ? 's' : ''} · ${formatCurrency(deleteGroupTarget.total_spent)} total`
+              : ''}
+          </Text>
+
+          <TouchableOpacity style={styles.deleteOption} onPress={handleGroupKeepAsExpense} activeOpacity={0.75}>
+            <View style={[styles.deleteOptionIcon, { backgroundColor: Colors.primary + '15' }]}>
+              <MaterialCommunityIcons name="receipt-text-check-outline" size={22} color={Colors.primary} />
+            </View>
+            <View style={styles.deleteOptionText}>
+              <Text style={[styles.deleteOptionLabel, { color: Colors.primary }]}>Keep as Expense</Text>
+              <Text style={styles.deleteOptionDesc}>Remove from list — amount stays in expense reports</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.deleteOption, styles.deleteOptionDanger]} onPress={handleGroupDeleteCompletely} activeOpacity={0.75}>
+            <View style={[styles.deleteOptionIcon, { backgroundColor: Colors.error + '15' }]}>
+              <MaterialCommunityIcons name="trash-can-outline" size={22} color={Colors.error} />
+            </View>
+            <View style={styles.deleteOptionText}>
+              <Text style={[styles.deleteOptionLabel, { color: Colors.error }]}>Delete Completely</Text>
+              <Text style={styles.deleteOptionDesc}>Remove from list and from expense reports</Text>
+            </View>
+          </TouchableOpacity>
+
+          <Button mode="text" onPress={() => setDeleteGroupTarget(null)} style={{ marginTop: 4 }}>Cancel</Button>
+        </Modal>
+      </Portal>
+
+      {/* Individual purchase delete modal (from history) */}
       <Portal>
         <Modal visible={!!deleteTarget} onDismiss={() => setDeleteTarget(null)} contentContainerStyle={styles.deleteModal}>
           <Text style={styles.deleteTitle}>Remove Record</Text>
@@ -283,9 +434,9 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     borderRadius: 8,
   },
-  rightCol: { alignItems: 'flex-end', justifyContent: 'center', gap: 2, paddingRight: 4 },
+  rightCol: { alignItems: 'flex-end', justifyContent: 'center', gap: 4, paddingRight: 4 },
+  rowActions: { flexDirection: 'row', gap: 12 },
   amount: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  unitCostText: { fontSize: 11, color: Colors.textSecondary },
   totalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     marginHorizontal: 12, marginTop: 12, marginBottom: 4, padding: 14,
@@ -295,7 +446,7 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: 17, fontWeight: '800', color: Colors.warning },
   fab: { position: 'absolute', right: 16, bottom: 24, backgroundColor: Colors.primary },
   modal: { backgroundColor: Colors.surface, margin: 16, borderRadius: 16, padding: 20, maxHeight: '90%' },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 14 },
+  modalTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 14, flex: 1 },
   input: { marginBottom: 10, backgroundColor: Colors.surface },
   row: { flexDirection: 'row', gap: 10 },
   qtyInput: { width: 90 },
@@ -308,6 +459,19 @@ const styles = StyleSheet.create({
   },
   suggestionItem: { paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
   suggestionText: { fontSize: 13, color: Colors.text },
+  // History modal
+  historyHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  historyList: { maxHeight: 400 },
+  historyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border,
+  },
+  historyLeft: { flex: 1 },
+  historyDate: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary },
+  historyDesc: { fontSize: 13, color: Colors.text, marginTop: 2 },
+  historyAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  historyActions: { flexDirection: 'row', gap: 10 },
   // Delete options modal
   deleteModal: { backgroundColor: Colors.surface, margin: 20, borderRadius: 16, padding: 20 },
   deleteTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 4 },
