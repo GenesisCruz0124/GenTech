@@ -169,6 +169,41 @@ export default function DashboardScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={load} colors={[Colors.primary]} />}
     >
+      {/* ── PERIOD FILTER ─────────────────────────── */}
+      <View style={styles.filterPanel}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {PERIODS.map(p => {
+            const active = period === p.value;
+            return (
+              <TouchableOpacity key={p.value}
+                style={[styles.periodChip, active && styles.periodChipActive]}
+                onPress={() => { setPeriod(p.value); setTargetDate(new Date()); setGlobalPeriod(p.value); setGlobalTargetDate(new Date()); }}
+                activeOpacity={0.75}>
+                <MaterialCommunityIcons name={p.icon as any} size={13} color={active ? '#fff' : Colors.textSecondary} />
+                <Text style={[styles.periodChipLabel, active && { color: '#fff' }]}>{p.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        {(period === 'monthly' || period === 'yearly' || period === 'weekly') && (
+          <View style={styles.navRow}>
+            <IconButton icon="chevron-left" size={20} iconColor={Colors.primary} onPress={() => navigateDate(-1)} />
+            <Text style={styles.navLabel}>{navLabel()}</Text>
+            <IconButton icon="chevron-right" size={20} iconColor={Colors.primary} onPress={() => navigateDate(1)} />
+          </View>
+        )}
+        {period === 'custom' && (
+          <View style={styles.customRow}>
+            <View style={styles.customField}>
+              <DatePickerField label="From" value={customFrom} onChange={setCustomFrom} maxDate={fromIso(customTo)} />
+            </View>
+            <View style={styles.customField}>
+              <DatePickerField label="To" value={customTo} onChange={setCustomTo} minDate={fromIso(customFrom)} maxDate={new Date()} />
+            </View>
+          </View>
+        )}
+      </View>
+
       {/* ── NET INCOME ROW (side by side) ────────── */}
       {(() => {
         const cashPositive = summary.net_income_cash >= 0;
