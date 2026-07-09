@@ -370,8 +370,20 @@ const styles = StyleSheet.create({
   dateChipLabel: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
   dateChipLabelActive: { color: '#fff' },
 
-  // Period filter panel
-  filterPanel: { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  // Period filter panel — matches Stats card style
+  filterPanel: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 4,
+  },
   filterRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
   periodChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background },
   periodChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
