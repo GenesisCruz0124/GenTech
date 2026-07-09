@@ -1,6 +1,7 @@
 name: Release APK
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'android/app/build/outputs/apk/release/GenTech-*.apk'
