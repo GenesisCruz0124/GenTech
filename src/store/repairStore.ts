@@ -50,7 +50,7 @@ interface RepairStore {
   isLoading: boolean;
   error: string | null;
 
-  fetchRepairs: (filter?: RepairFilter) => Promise<void>;
+  fetchRepairs: (filter?: RepairFilter, opts?: { clearFirst?: boolean }) => Promise<void>;
   fetchStatusCounts: (dateFrom?: string, dateTo?: string) => Promise<void>;
   addRepair: (data: CreateRepairInput) => Promise<number>;
   advanceStatus: (id: number, status: RepairStatus) => Promise<void>;
@@ -69,8 +69,8 @@ export const useRepairStore = create<RepairStore>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchRepairs: async (filter) => {
-    set({ isLoading: true, error: null });
+  fetchRepairs: async (filter, { clearFirst = false } = {}) => {
+    set(clearFirst ? { isLoading: true, error: null, repairs: [] } : { isLoading: true, error: null });
     try {
       const repairs = await listRepairs(filter);
       set({ repairs, isLoading: false });

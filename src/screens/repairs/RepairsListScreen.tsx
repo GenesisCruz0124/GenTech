@@ -190,13 +190,13 @@ export default function RepairsListScreen() {
       const incoming = pending.filter as FilterValue;
       if (incoming === '') {
         setSelectedFilters(new Set());
-        fetchRepairs({ dateFrom: pending.dateFrom, dateTo: pending.dateTo });
+        fetchRepairs({ dateFrom: pending.dateFrom, dateTo: pending.dateTo }, { clearFirst: true });
       } else if (incoming === 'not_paid') {
         setSelectedFilters(new Set([incoming]));
-        fetchRepairs({ not_paid: true, dateFrom: pending.dateFrom, dateTo: pending.dateTo });
+        fetchRepairs({ not_paid: true, dateFrom: pending.dateFrom, dateTo: pending.dateTo }, { clearFirst: true });
       } else {
         setSelectedFilters(new Set([incoming]));
-        fetchRepairs({ status: incoming as RepairStatus, dateFrom: pending.dateFrom, dateTo: pending.dateTo });
+        fetchRepairs({ status: incoming as RepairStatus, dateFrom: pending.dateFrom, dateTo: pending.dateTo }, { clearFirst: true });
       }
       return;
     }
