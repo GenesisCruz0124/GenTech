@@ -8,12 +8,13 @@ export interface ConsumablePurchase {
   unit_cost: number;
   notes: string | null;
   created_at: string;
+  archived: number;
 }
 
 export async function listConsumablePurchases(): Promise<ConsumablePurchase[]> {
   const db = await getDB();
   return db.getAllAsync<ConsumablePurchase>(
-    `SELECT * FROM consumable_purchases ORDER BY created_at DESC`
+    `SELECT * FROM consumable_purchases WHERE archived = 0 ORDER BY created_at DESC`
   );
 }
 
@@ -46,6 +47,13 @@ export async function updateConsumablePurchase(id: number, data: {
   );
 }
 
+// Hides from the consumables list but keeps the amount in expense reports
+export async function archiveConsumablePurchase(id: number): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(`UPDATE consumable_purchases SET archived = 1 WHERE id = ?`, [id]);
+}
+
+// Removes completely — also disappears from expense reports
 export async function deleteConsumablePurchase(id: number): Promise<void> {
   const db = await getDB();
   await db.runAsync(`DELETE FROM consumable_purchases WHERE id = ?`, [id]);

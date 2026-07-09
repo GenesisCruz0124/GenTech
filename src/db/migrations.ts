@@ -1485,6 +1485,12 @@ const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    version: 48,
+    statements: [
+      `ALTER TABLE consumable_purchases ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];
 
 // All tables that participate in multi-device sync (catalog/reference tables

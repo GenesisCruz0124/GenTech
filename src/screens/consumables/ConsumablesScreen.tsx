@@ -7,11 +7,11 @@ import {
   ConsumablePurchase,
   addConsumablePurchase,
   updateConsumablePurchase,
+  archiveConsumablePurchase,
   listConsumablePurchases,
   deleteConsumablePurchase,
 } from '../../repositories/consumablesRepository';
 import EmptyState from '../../components/common/EmptyState';
-import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { Colors } from '../../constants/colors';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -60,7 +60,7 @@ export default function ConsumablesScreen() {
     setModalVisible(true);
   };
 
-  const handleAdd = async () => {
+  const handleSave = async () => {
     if (!name.trim() || !unitCost.trim()) return;
     setSubmitting(true);
     try {
@@ -83,7 +83,14 @@ export default function ConsumablesScreen() {
     }
   };
 
-  const handleDelete = async () => {
+  const handleKeepAsExpense = async () => {
+    if (!deleteTarget) return;
+    await archiveConsumablePurchase(deleteTarget.id);
+    setDeleteTarget(null);
+    await load();
+  };
+
+  const handleDeleteCompletely = async () => {
     if (!deleteTarget) return;
     await deleteConsumablePurchase(deleteTarget.id);
     setDeleteTarget(null);
@@ -140,6 +147,7 @@ export default function ConsumablesScreen() {
 
       <FAB icon="plus" style={styles.fab} onPress={openModal} />
 
+      {/* Add / Edit modal */}
       <Portal>
         <Modal visible={modalVisible} onDismiss={() => setModalVisible(false)} contentContainerStyle={styles.modal}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -215,7 +223,7 @@ export default function ConsumablesScreen() {
                 <Button mode="outlined" onPress={() => setModalVisible(false)} style={{ flex: 1 }}>Cancel</Button>
                 <Button
                   mode="contained"
-                  onPress={handleAdd}
+                  onPress={handleSave}
                   loading={submitting}
                   disabled={!name.trim() || !unitCost.trim() || submitting}
                   style={{ flex: 1 }}
@@ -229,17 +237,38 @@ export default function ConsumablesScreen() {
         </Modal>
       </Portal>
 
-      {deleteTarget && (
-        <ConfirmDialog
-          visible
-          title="Delete Record"
-          message={`Remove "${deleteTarget.name}" purchase?`}
-          confirmLabel="Delete"
-          destructive
-          onConfirm={handleDelete}
-          onDismiss={() => setDeleteTarget(null)}
-        />
-      )}
+      {/* Delete options modal */}
+      <Portal>
+        <Modal visible={!!deleteTarget} onDismiss={() => setDeleteTarget(null)} contentContainerStyle={styles.deleteModal}>
+          <Text style={styles.deleteTitle}>Remove Record</Text>
+          <Text style={styles.deleteName}>{deleteTarget?.name}</Text>
+          <Text style={styles.deleteSubtitle}>
+            {deleteTarget ? `${deleteTarget.quantity} ${deleteTarget.unit ?? 'pcs'} · ${formatCurrency(deleteTarget.unit_cost * deleteTarget.quantity)}` : ''}
+          </Text>
+
+          <TouchableOpacity style={styles.deleteOption} onPress={handleKeepAsExpense} activeOpacity={0.75}>
+            <View style={[styles.deleteOptionIcon, { backgroundColor: Colors.primary + '15' }]}>
+              <MaterialCommunityIcons name="receipt-text-check-outline" size={22} color={Colors.primary} />
+            </View>
+            <View style={styles.deleteOptionText}>
+              <Text style={[styles.deleteOptionLabel, { color: Colors.primary }]}>Keep as Expense</Text>
+              <Text style={styles.deleteOptionDesc}>Remove from list — amount stays in expense reports</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.deleteOption, styles.deleteOptionDanger]} onPress={handleDeleteCompletely} activeOpacity={0.75}>
+            <View style={[styles.deleteOptionIcon, { backgroundColor: Colors.error + '15' }]}>
+              <MaterialCommunityIcons name="trash-can-outline" size={22} color={Colors.error} />
+            </View>
+            <View style={styles.deleteOptionText}>
+              <Text style={[styles.deleteOptionLabel, { color: Colors.error }]}>Delete Completely</Text>
+              <Text style={styles.deleteOptionDesc}>Remove from list and from expense reports</Text>
+            </View>
+          </TouchableOpacity>
+
+          <Button mode="text" onPress={() => setDeleteTarget(null)} style={{ marginTop: 4 }}>Cancel</Button>
+        </Modal>
+      </Portal>
     </>
   );
 }
@@ -279,4 +308,19 @@ const styles = StyleSheet.create({
   },
   suggestionItem: { paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
   suggestionText: { fontSize: 13, color: Colors.text },
+  // Delete options modal
+  deleteModal: { backgroundColor: Colors.surface, margin: 20, borderRadius: 16, padding: 20 },
+  deleteTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  deleteName: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  deleteSubtitle: { fontSize: 12, color: Colors.textSecondary, marginBottom: 20 },
+  deleteOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    padding: 14, borderRadius: 12, backgroundColor: Colors.background,
+    marginBottom: 10,
+  },
+  deleteOptionDanger: { borderWidth: 1, borderColor: Colors.error + '30' },
+  deleteOptionIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  deleteOptionText: { flex: 1 },
+  deleteOptionLabel: { fontSize: 15, fontWeight: '700' },
+  deleteOptionDesc: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
 });
