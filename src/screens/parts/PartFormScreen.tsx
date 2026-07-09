@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Button, HelperText, Menu, Text, TextInput } from 'react-native-paper';
+import { Button, HelperText, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
@@ -9,8 +9,9 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
 import { getPartById, searchCompatibleModels } from '../../repositories/partsRepository';
-import { getAllCategories, Category } from '../../repositories/categoryRepository';
+import { getAllCategories, createCategory, Category } from '../../repositories/categoryRepository';
 import { searchDeviceModels, DeviceModel } from '../../repositories/deviceModelRepository';
+import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import { Colors } from '../../constants/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PartForm'>;
@@ -27,10 +28,11 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const FIELDS = ['low_stock_threshold', 'cost_price'] as const;
+const FIELDS = ['low_stock_threshold', 'cost_price', 'selling_price'] as const;
 const FIELD_LABELS: Record<typeof FIELDS[number], string> = {
   low_stock_threshold: 'Low Stock Alert At',
   cost_price: 'Cost Price (₱)',
+  selling_price: 'Selling Price (₱)',
 };
 
 export default function PartFormScreen({ route, navigation }: Props) {
@@ -43,25 +45,29 @@ export default function PartFormScreen({ route, navigation }: Props) {
   const [categorySuggestions, setCategorySuggestions] = useState<Category[]>([]);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
 
-  // Brand — read-only, auto-filled from selected model
+  // Brand — editable with autocomplete
+  const [allBrands, setAllBrands] = useState<DeviceBrand[]>([]);
   const [brandId, setBrandId] = useState<number | null>(null);
   const [brandInput, setBrandInput] = useState('');
+  const [brandSuggestions, setBrandSuggestions] = useState<DeviceBrand[]>([]);
+  const [showBrandSuggestions, setShowBrandSuggestions] = useState(false);
 
   // Model autocomplete
   const [modelSuggestions, setModelSuggestions] = useState<DeviceModel[]>([]);
   const [showModelSuggestions, setShowModelSuggestions] = useState(false);
 
-  // Compatible model autocomplete — suggests from device models and from existing parts' compatible_model values
+  // Compatible model autocomplete
   const [compatModelSuggestions, setCompatModelSuggestions] = useState<string[]>([]);
   const [showCompatModelSuggestions, setShowCompatModelSuggestions] = useState(false);
 
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { name: '', quantity: '0', low_stock_threshold: '2', cost_price: '0', compatible_model: '' },
+    defaultValues: { name: '', quantity: '0', low_stock_threshold: '2', cost_price: '0', selling_price: '0', compatible_model: '' },
   });
 
   useEffect(() => {
     getAllCategories().then(setCategories);
+    getAllDeviceBrands().then(setAllBrands);
     if (partId) {
       getPartById(partId).then(p => {
         if (p) {
@@ -70,6 +76,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
             quantity: String(p.quantity),
             low_stock_threshold: String(p.low_stock_threshold),
             cost_price: String(p.cost_price),
+            selling_price: String(p.selling_price ?? 0),
             compatible_model: p.compatible_model ?? '',
           });
           setCategoryId(p.category_id);
@@ -89,7 +96,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
         quantity: parseInt(data.quantity),
         low_stock_threshold: parseInt(data.low_stock_threshold || '5'),
         cost_price: parseFloat(data.cost_price),
-        selling_price: 0,
+        selling_price: parseFloat(data.selling_price || '0'),
         category_id: categoryId ?? undefined,
         brand_id: brandId ?? undefined,
         compatible_model: data.compatible_model?.trim() || undefined,
@@ -112,15 +119,15 @@ export default function PartFormScreen({ route, navigation }: Props) {
 
         <View style={styles.formCard}>
 
-          {/* Model */}
+          {/* Part Name */}
           <View style={styles.fieldGroup}>
             <View style={styles.fieldGroupHeader}>
               <View style={[styles.dot, { backgroundColor: Colors.info }]} />
-              <Text style={styles.groupLabel}>Device Model</Text>
+              <Text style={styles.groupLabel}>Part Name</Text>
             </View>
             <Controller control={control} name="name" render={({ field: { onChange, value } }) => (
               <>
-                <TextInput label="Model *" value={value} onChangeText={async (text) => {
+                <TextInput label="Part Name *" value={value} onChangeText={async (text) => {
                   onChange(text);
                   if (text.length >= 2) { const r = await searchDeviceModels(text); setModelSuggestions(r); setShowModelSuggestions(r.length > 0); }
                   else { setShowModelSuggestions(false); }
@@ -150,22 +157,44 @@ export default function PartFormScreen({ route, navigation }: Props) {
 
           <View style={styles.divider} />
 
-          {/* Brand — auto-filled from selected model */}
+          {/* Brand — editable with autocomplete */}
           <View style={styles.fieldGroup}>
             <View style={styles.fieldGroupHeader}>
               <View style={[styles.dot, { backgroundColor: Colors.primary }]} />
               <Text style={styles.groupLabel}>Brand</Text>
             </View>
-            <View style={styles.brandDisplay}>
-              <MaterialCommunityIcons
-                name={brandId ? 'check-circle' : 'information-outline'}
-                size={16}
-                color={brandId ? Colors.success : Colors.textSecondary}
-              />
-              <Text style={[styles.brandDisplayText, !brandId && { color: Colors.textSecondary, fontStyle: 'italic' }]}>
-                {brandInput || 'Auto-filled when a model is selected'}
-              </Text>
-            </View>
+            <TextInput
+              label="Brand"
+              value={brandInput}
+              onChangeText={(text) => {
+                setBrandInput(text);
+                setBrandId(null);
+                if (text.length >= 1) {
+                  const filtered = allBrands.filter(b => b.name.toLowerCase().includes(text.toLowerCase()));
+                  setBrandSuggestions(filtered);
+                  setShowBrandSuggestions(filtered.length > 0);
+                } else {
+                  setShowBrandSuggestions(false);
+                }
+              }}
+              mode="outlined"
+              style={styles.input}
+              placeholder="e.g. Apple, Samsung, Xiaomi..."
+            />
+            {showBrandSuggestions && (
+              <View style={styles.suggestionBox}>
+                {brandSuggestions.map(b => (
+                  <TouchableOpacity key={b.id} style={styles.suggestionItem}
+                    onPress={() => {
+                      setBrandId(b.id);
+                      setBrandInput(b.name);
+                      setShowBrandSuggestions(false);
+                    }}>
+                    <Text style={styles.suggestionText}>{b.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={styles.divider} />
@@ -179,7 +208,7 @@ export default function PartFormScreen({ route, navigation }: Props) {
             <TextInput label="Category" value={categoryInput} onChangeText={(text) => {
               setCategoryInput(text); setCategoryId(null);
               const f = text.length >= 1 ? categories.filter(c => c.name.toLowerCase().includes(text.toLowerCase())) : categories;
-              setCategorySuggestions(f); setShowCategorySuggestions(f.length > 0 && text.length >= 1);
+              setCategorySuggestions(f); setShowCategorySuggestions(text.length >= 1);
             }} mode="outlined" style={styles.input} placeholder="e.g. Display, Battery, Camera..." />
             {showCategorySuggestions && (
               <View style={styles.suggestionBox}>
@@ -189,6 +218,19 @@ export default function PartFormScreen({ route, navigation }: Props) {
                     <Text style={styles.suggestionText}>{c.name}</Text>
                   </TouchableOpacity>
                 ))}
+                {!categorySuggestions.some(c => c.name.toLowerCase() === categoryInput.toLowerCase()) && (
+                  <TouchableOpacity
+                    style={[styles.suggestionItem, { backgroundColor: Colors.primary + '10' }]}
+                    onPress={async () => {
+                      const newId = await createCategory(categoryInput);
+                      const newCat: Category = { id: newId, name: categoryInput } as Category;
+                      setCategories(prev => [...prev, newCat]);
+                      setCategoryId(newId);
+                      setShowCategorySuggestions(false);
+                    }}>
+                    <Text style={[styles.suggestionText, { color: Colors.primary }]}>+ Create "{categoryInput}"</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -328,18 +370,6 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 16 },
 
   input: { marginBottom: 2, backgroundColor: Colors.surface },
-  brandDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.background,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  brandDisplayText: { fontSize: 14, color: Colors.text, flex: 1 },
   stepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, paddingVertical: 4 },
   stepperLabel: { fontSize: 14, color: Colors.text, fontWeight: '500' },
   stepper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
