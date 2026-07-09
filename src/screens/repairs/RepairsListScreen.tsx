@@ -11,6 +11,7 @@ import RepairCard from '../../components/repairs/RepairCard';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
 import { RepairStatus, STATUS_COLORS } from '../../constants/statusOptions';
+import { formatCurrency } from '../../utils/formatters';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -283,6 +284,34 @@ export default function RepairsListScreen() {
       <FlatList
         data={sortedRepairs}
         keyExtractor={r => String(r.id)}
+        ListHeaderComponent={sortedRepairs.length > 0 ? (() => {
+          const totalAmt  = sortedRepairs.reduce((s, r) => s + (r.final_cost ?? r.estimated_cost), 0);
+          const activeCount = sortedRepairs.filter(r => r.status === 'pending' || r.status === 'in_progress').length;
+          const unpaidCount = sortedRepairs.filter(r => r.is_paid === 0 && r.status !== 'not_repaired').length;
+          return (
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryVal}>{sortedRepairs.length}</Text>
+                <Text style={styles.summaryLbl}>Total</Text>
+              </View>
+              <View style={styles.summarySep} />
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryVal, activeCount > 0 && styles.summaryValWarn]}>{activeCount}</Text>
+                <Text style={styles.summaryLbl}>Active</Text>
+              </View>
+              <View style={styles.summarySep} />
+              <View style={styles.summaryItem}>
+                <Text style={[styles.summaryVal, unpaidCount > 0 && styles.summaryValErr]}>{unpaidCount}</Text>
+                <Text style={styles.summaryLbl}>Unpaid</Text>
+              </View>
+              <View style={styles.summarySep} />
+              <View style={styles.summaryItem}>
+                <Text style={styles.summaryVal}>{formatCurrency(totalAmt)}</Text>
+                <Text style={styles.summaryLbl}>Amount</Text>
+              </View>
+            </View>
+          );
+        })() : null}
         renderItem={({ item }) => (
           <RepairCard
             repair={item}
@@ -362,6 +391,27 @@ const styles = StyleSheet.create({
   filterBadge: { position: 'absolute', top: -4, right: -5, backgroundColor: Colors.warning, borderRadius: 7, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
   filterBadgeText: { fontSize: 9, color: '#fff', fontWeight: '800' },
 
+  summaryCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    marginHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 4,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+  },
+  summaryItem: { flex: 1, alignItems: 'center' },
+  summaryVal: { fontSize: 18, fontWeight: '800', color: Colors.primary },
+  summaryValWarn: { color: Colors.warning },
+  summaryValErr: { color: Colors.error },
+  summaryLbl: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, fontWeight: '500' },
+  summarySep: { width: 1, backgroundColor: Colors.border, marginVertical: 4 },
   list: { paddingBottom: 100 },
   emptyContainer: { flex: 1 },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: Colors.primary },
