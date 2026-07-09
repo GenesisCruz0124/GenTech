@@ -175,10 +175,14 @@ export default function RepairsListScreen() {
     });
   }, [navigation, filterVisible, selectedFilters, searchVisible, sortVisible]);
 
-  // Skip flags: when arriving from dashboard, suppress both the focus reload and the
-  // load() call that fires because setSelectedFilters changes the `load` reference.
+  // Always keep a ref to the latest load so useFocusEffect can call it without
+  // taking load as a dependency (which would re-fire useFocusEffect on every filter change).
+  const loadRef = useRef(load);
+  useEffect(() => { loadRef.current = load; }, [load]);
+
+  // Skip flag: set by the params effect below so the focus event that fires when
+  // navigating back to this tab doesn't override the dashboard-driven filtered fetch.
   const skipNextFocusLoad = useRef(false);
-  const skipNextLoadEffect = useRef(false);
 
   // Apply filter from dashboard navigation — navKey changes on every tap so this
   // always re-fires even when initialFilter stays the same (e.g. repeated "Total Repairs" taps).
@@ -189,7 +193,6 @@ export default function RepairsListScreen() {
     const dateFrom = route.params?.dateFrom as string | undefined;
     const dateTo = route.params?.dateTo as string | undefined;
     skipNextFocusLoad.current = true;
-    skipNextLoadEffect.current = true;
     if (incoming === '') {
       setSelectedFilters(new Set());
       fetchRepairs({ dateFrom, dateTo });
@@ -203,7 +206,7 @@ export default function RepairsListScreen() {
     }
   }, [route.params?.navKey]);
 
-  // Reload on focus — clears stale filters if a repair was just created
+  // Reload on focus — fires only on actual screen focus/blur events, not when load changes.
   useFocusEffect(useCallback(() => {
     if (skipNextFocusLoad.current) {
       skipNextFocusLoad.current = false;
@@ -214,14 +217,10 @@ export default function RepairsListScreen() {
       fetchRepairs({});
       return;
     }
-    load();
-  }, [load]));
+    loadRef.current();
+  }, []));
 
   useEffect(() => {
-    if (skipNextLoadEffect.current) {
-      skipNextLoadEffect.current = false;
-      return;
-    }
     load();
   }, [load]);
 
