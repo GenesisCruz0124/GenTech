@@ -12,7 +12,6 @@ import RepairCard from '../../components/repairs/RepairCard';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
 import { RepairStatus } from '../../constants/statusOptions';
-import { formatCurrency } from '../../utils/formatters';
 import { ReportPeriod } from '../../repositories/reportsRepository';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -66,9 +65,10 @@ const hdrBtnActive: any = { backgroundColor: 'rgba(255,255,255,0.4)' };
 
 export default function RepairsListScreen() {
   const navigation = useNavigation<Nav>();
-  const { repairs, isLoading, statusCounts, notPaidCount, fetchRepairs, advanceStatus } = useRepairStore();
+  const { repairs, isLoading, statusCounts, notPaidCount, fetchRepairs, fetchStatusCounts, advanceStatus } = useRepairStore();
   const [search, setSearch] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<Set<FilterValue>>(new Set());
+  const [selectedStatus, setSelectedStatus] = useState<RepairStatus | 'not_paid' | null>(null);
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [targetDate, setTargetDate] = useState(new Date());
   const [customFrom, setCustomFrom] = useState(() => toIso(getWeekRange(new Date()).start));
@@ -134,8 +134,12 @@ export default function RepairsListScreen() {
 
   const load = useCallback(() => {
     const { dateFrom, dateTo } = getDateRange();
-    fetchRepairs({ search: search || undefined, dateFrom, dateTo });
-  }, [search, getDateRange]);
+    const opts: any = { search: search || undefined, dateFrom, dateTo };
+    if (selectedStatus === 'not_paid') opts.not_paid = true;
+    else if (selectedStatus) opts.status = selectedStatus;
+    fetchRepairs(opts);
+    fetchStatusCounts(dateFrom, dateTo);
+  }, [search, getDateRange, selectedStatus]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -174,18 +178,23 @@ export default function RepairsListScreen() {
       const incoming = pending.filter as FilterValue;
       if (incoming === '') {
         setSelectedFilters(new Set());
+        setSelectedStatus(null);
         fetchRepairs({ dateFrom: pending.dateFrom, dateTo: pending.dateTo }, { clearFirst: true });
       } else if (incoming === 'not_paid') {
         setSelectedFilters(new Set([incoming]));
+        setSelectedStatus('not_paid');
         fetchRepairs({ not_paid: true, dateFrom: pending.dateFrom, dateTo: pending.dateTo }, { clearFirst: true });
       } else {
         setSelectedFilters(new Set([incoming]));
+        setSelectedStatus(incoming as RepairStatus);
         fetchRepairs({ status: incoming as RepairStatus, dateFrom: pending.dateFrom, dateTo: pending.dateTo }, { clearFirst: true });
       }
+      fetchStatusCounts(pending.dateFrom, pending.dateTo);
       return;
     }
     if (consumeRepairJustCreated()) {
       setSelectedFilters(new Set());
+      setSelectedStatus(null);
       fetchRepairs({});
       return;
     }
@@ -202,6 +211,42 @@ export default function RepairsListScreen() {
     }
     load();
   }, [load]);
+
+  const totalRepairs =
+    (statusCounts.pending ?? 0) +
+    (statusCounts.in_progress ?? 0) +
+    (statusCounts.ready ?? 0) +
+    (statusCounts.delivered ?? 0) +
+    (statusCounts.not_repaired ?? 0);
+
+  const handleTilePress = (status: RepairStatus | 'not_paid' | null) => {
+    setSelectedStatus(prev => prev === status ? null : status);
+  };
+
+  const tilesHeader = (
+    <View style={styles.tilesContainer}>
+      <TouchableOpacity
+        style={[styles.totalTile, selectedStatus !== null && { opacity: 0.65 }]}
+        activeOpacity={0.85}
+        onPress={() => setSelectedStatus(null)}
+      >
+        <MaterialCommunityIcons name="wrench-clock" size={20} color="#fff" />
+        <Text style={styles.totalCount}>{totalRepairs}</Text>
+        <Text style={styles.totalLabel}>Total Repairs</Text>
+        <MaterialCommunityIcons name="chevron-right" size={18} color="rgba(255,255,255,0.6)" style={{ marginLeft: 'auto' }} />
+      </TouchableOpacity>
+      <View style={styles.tileRow}>
+        <StatTile label="Pending"      count={statusCounts.pending ?? 0}      color="#FF6F00"              icon="clock-outline"        selected={selectedStatus === 'pending'}      onPress={() => handleTilePress('pending')} />
+        <StatTile label="In Progress"  count={statusCounts.in_progress ?? 0}  color={Colors.primary}       icon="wrench"               selected={selectedStatus === 'in_progress'}  onPress={() => handleTilePress('in_progress')} />
+        <StatTile label="Ready"        count={statusCounts.ready ?? 0}        color={Colors.success}       icon="check-circle-outline" selected={selectedStatus === 'ready'}        onPress={() => handleTilePress('ready')} />
+      </View>
+      <View style={styles.tileRow}>
+        <StatTile label="Delivered"    count={statusCounts.delivered ?? 0}    color={Colors.textSecondary} icon="package-check"        selected={selectedStatus === 'delivered'}    onPress={() => handleTilePress('delivered')} />
+        <StatTile label="Not Repaired" count={statusCounts.not_repaired ?? 0} color={Colors.error}         icon="close-circle-outline" selected={selectedStatus === 'not_repaired'} onPress={() => handleTilePress('not_repaired')} />
+        <StatTile label="Not Paid"     count={notPaidCount}                   color={Colors.warning}       icon="cash-remove"          selected={selectedStatus === 'not_paid'}    onPress={() => handleTilePress('not_paid')} />
+      </View>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -281,34 +326,7 @@ export default function RepairsListScreen() {
       <FlatList
         data={sortedRepairs}
         keyExtractor={r => String(r.id)}
-        ListHeaderComponent={sortedRepairs.length > 0 ? (() => {
-          const totalAmt  = sortedRepairs.reduce((s, r) => s + (r.final_cost ?? r.estimated_cost), 0);
-          const activeCount = sortedRepairs.filter(r => r.status === 'pending' || r.status === 'in_progress').length;
-          const unpaidCount = sortedRepairs.filter(r => r.is_paid === 0 && r.status !== 'not_repaired').length;
-          return (
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryVal}>{sortedRepairs.length}</Text>
-                <Text style={styles.summaryLbl}>Total</Text>
-              </View>
-              <View style={styles.summarySep} />
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryVal, activeCount > 0 && styles.summaryValWarn]}>{activeCount}</Text>
-                <Text style={styles.summaryLbl}>Active</Text>
-              </View>
-              <View style={styles.summarySep} />
-              <View style={styles.summaryItem}>
-                <Text style={[styles.summaryVal, unpaidCount > 0 && styles.summaryValErr]}>{unpaidCount}</Text>
-                <Text style={styles.summaryLbl}>Unpaid</Text>
-              </View>
-              <View style={styles.summarySep} />
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryVal}>{formatCurrency(totalAmt)}</Text>
-                <Text style={styles.summaryLbl}>Amount</Text>
-              </View>
-            </View>
-          );
-        })() : null}
+        ListHeaderComponent={tilesHeader}
         renderItem={({ item }) => (
           <RepairCard
             repair={item}
@@ -339,6 +357,20 @@ export default function RepairsListScreen() {
 
       <FAB icon="plus" label="New Repair" style={styles.fab} onPress={() => navigation.navigate('NewRepair')} color="#fff" />
     </View>
+  );
+}
+
+function StatTile({ label, count, color, icon, selected, onPress }: { label: string; count: number; color: string; icon: string; selected?: boolean; onPress?: () => void }) {
+  return (
+    <TouchableOpacity
+      style={[styles.statTile, { borderTopColor: color }, selected && { borderWidth: 2, borderTopWidth: 3, borderColor: color, backgroundColor: color + '18' }]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
+      <MaterialCommunityIcons name={icon as any} size={22} color={color} style={styles.statIcon} />
+      <Text style={[styles.statCount, { color }]}>{count}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -408,27 +440,41 @@ const styles = StyleSheet.create({
   filterBadge: { position: 'absolute', top: -4, right: -5, backgroundColor: Colors.warning, borderRadius: 7, minWidth: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
   filterBadgeText: { fontSize: 9, color: '#fff', fontWeight: '800' },
 
-  summaryCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    marginHorizontal: 12,
-    marginTop: 10,
-    marginBottom: 4,
+  // Tiles section
+  tilesContainer: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4, gap: 8 },
+  totalTile: {
+    backgroundColor: Colors.primary,
     borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    elevation: 3,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  totalCount: { fontSize: 28, fontWeight: '800', color: '#fff' },
+  totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '500', flex: 1 },
+  tileRow: { flexDirection: 'row', gap: 8 },
+  statTile: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    borderTopWidth: 3,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
   },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryVal: { fontSize: 18, fontWeight: '800', color: Colors.primary },
-  summaryValWarn: { color: Colors.warning },
-  summaryValErr: { color: Colors.error },
-  summaryLbl: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, fontWeight: '500' },
-  summarySep: { width: 1, backgroundColor: Colors.border, marginVertical: 4 },
+  statIcon: { marginBottom: 6 },
+  statCount: { fontSize: 26, fontWeight: '800', lineHeight: 30 },
+  statLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 3, textAlign: 'center', fontWeight: '500' },
+
   list: { paddingBottom: 100 },
   emptyContainer: { flex: 1 },
   fab: { position: 'absolute', right: 16, bottom: 16, backgroundColor: Colors.primary },
