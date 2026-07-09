@@ -67,7 +67,7 @@ export default function DashboardScreen() {
   const [customTo, setCustomTo] = useState(() => toIso(new Date()));
   const [summary, setSummary] = useState<TotalSummary>({
     gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0,
-    total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0,
+    total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0, parts_purchase: 0,
   });
   const [filterVisible, setFilterVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -160,8 +160,10 @@ export default function DashboardScreen() {
     (statusCounts.delivered ?? 0) +
     (statusCounts.not_repaired ?? 0);
 
-  const goRepairs = (filter: string) =>
-    navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter } } as any);
+  const goRepairs = (filter: string) => {
+    const { dateFrom, dateTo } = getDateRange();
+    navigation.navigate('MainTabs', { screen: 'Repairs', params: { initialFilter: filter, dateFrom, dateTo } } as any);
+  };
 
   const goFinancialDetail = (kind: FinancialKind) => {
     const { dateFrom, dateTo } = getDateRange();
@@ -291,6 +293,25 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* ── STOCK PURCHASE CARD ──────────────────── */}
+      <TouchableOpacity
+        style={styles.stockCard}
+        activeOpacity={0.7}
+        onPress={() => {
+          const { dateFrom, dateTo } = getDateRange();
+          navigation.navigate('ExpenseDetail', { period, targetDate: dateFrom, dateTo });
+        }}
+      >
+        <View style={[styles.stockIcon, { backgroundColor: Colors.primary + '18' }]}>
+          <MaterialCommunityIcons name="package-variant" size={18} color={Colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.stockLabel}>Stock Purchase</Text>
+          <Text style={styles.stockSub}>Parts restock for the period</Text>
+        </View>
+        <Text style={styles.stockAmount}>{formatCurrency(summary.parts_purchase)}</Text>
+      </TouchableOpacity>
 
       {/* ── REPAIR OVERVIEW ───────────────────────── */}
       <TouchableOpacity style={styles.totalTile} onPress={() => goRepairs('')} activeOpacity={0.85}>
@@ -485,6 +506,33 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 4,
   },
+
+  // ── Stock purchase card
+  stockCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+  },
+  stockIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stockLabel: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  stockSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  stockAmount: { fontSize: 16, fontWeight: '800', color: Colors.primary },
 
   // ── Total tile
   totalTile: {

@@ -182,18 +182,20 @@ export default function RepairsListScreen() {
   useEffect(() => {
     const incoming = route.params?.initialFilter as FilterValue | undefined;
     if (incoming === undefined) return;
+    const dateFrom = route.params?.dateFrom as string | undefined;
+    const dateTo = route.params?.dateTo as string | undefined;
     skipNextFocusLoad.current = true;
     if (incoming === '') {
       // "Total Repairs" tile — clear any active filter and show everything
       setSelectedFilters(new Set());
-      fetchRepairs({});
+      fetchRepairs({ dateFrom, dateTo });
       return;
     }
     setSelectedFilters(new Set([incoming as FilterValue]));
     if (incoming === 'not_paid') {
-      fetchRepairs({ not_paid: true });
+      fetchRepairs({ not_paid: true, dateFrom, dateTo });
     } else {
-      fetchRepairs({ status: incoming as RepairStatus });
+      fetchRepairs({ status: incoming as RepairStatus, dateFrom, dateTo });
     }
   }, [route.params?.initialFilter]);
 

@@ -24,6 +24,7 @@ export interface TotalSummary {
   total_paid: number;
   unpaid_count: number;
   unpaid_amount: number;
+  parts_purchase: number;
 }
 
 function periodFormat(period: ReportPeriod): string {
@@ -138,7 +139,7 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
   // Compute derived totals with rounding to avoid floating point drift
   const results = Array.from(map.values()).map(r => {
     r.gross_income  = round(r.repair_revenue + r.device_sale_revenue);
-    r.total_expense = round(r.parts_expense  + r.purchase_expense + r.repair_parts_expense);
+    r.total_expense = round(r.purchase_expense + r.repair_parts_expense);
     r.net_income    = round(r.gross_income   - r.total_expense);
     return r;
   });
@@ -199,15 +200,6 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   ]);
 
   const items: ExpenseItem[] = [
-    ...partsRows.map(r => ({
-      id: `parts-${r.id}`,
-      type: 'parts' as const,
-      date: r.date,
-      title: r.part_name,
-      subtitle: `${r.repair_no ? `Used in ${r.repair_no} · ` : ''}Qty ${r.quantity}${r.category_name ? ` · ${r.category_name}` : ''}${r.supplier_name ? ` · ${r.supplier_name}` : ''}`,
-      amount: r.amount,
-      repair_no: r.repair_no,
-    })),
     ...deviceRows.map(r => ({
       id: `device-${r.id}`,
       type: 'device' as const,
@@ -490,8 +482,9 @@ export async function getTotalSummary(period: ReportPeriod, targetDate?: string,
       total_paid:      r2(acc.total_paid      + r.total_paid),
       unpaid_count:    0,
       unpaid_amount:   0,
+      parts_purchase:  r2(acc.parts_purchase  + r.parts_expense),
     }),
-    { gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0, total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0 }
+    { gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0, total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0, parts_purchase: 0 }
   );
 
   base.unpaid_count    = unpaidRow?.count ?? 0;

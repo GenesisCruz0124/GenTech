@@ -57,7 +57,7 @@ export default function ReportsScreen() {
   const [targetDate, setTargetDate] = useState(new Date());
   const [summary, setSummary] = useState<TotalSummary>({
     gross_income: 0, net_income: 0, net_income_cash: 0, total_revenue: 0,
-    total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0,
+    total_expense: 0, total_paid: 0, unpaid_count: 0, unpaid_amount: 0, parts_purchase: 0,
   });
   const [rows, setRows] = useState<PeriodReport[]>([]);
   const [issueCounts, setIssueCounts] = useState<IssueCount[]>([]);

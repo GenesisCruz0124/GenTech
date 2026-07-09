@@ -46,6 +46,7 @@ export interface RepairFilter {
   not_paid?: boolean;
   search?: string;
   dateFrom?: string;   // ISO date string YYYY-MM-DD
+  dateTo?: string;     // ISO date string YYYY-MM-DD (inclusive)
   limit?: number;
   offset?: number;
 }
@@ -107,7 +108,10 @@ export async function listRepairs(filter?: RepairFilter): Promise<RepairWithCust
     const q = `%${filter.search}%`;
     params.push(q, q, q);
   }
-  if (filter?.dateFrom) {
+  if (filter?.dateFrom && filter?.dateTo) {
+    conditions.push("strftime('%Y-%m-%d', r.created_at) BETWEEN ? AND ?");
+    params.push(filter.dateFrom, filter.dateTo);
+  } else if (filter?.dateFrom) {
     conditions.push("strftime('%Y-%m-%d', r.created_at) >= ?");
     params.push(filter.dateFrom);
   }
