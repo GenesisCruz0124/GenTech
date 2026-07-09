@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { FAB, Searchbar, Text } from 'react-native-paper';
+import { FAB, IconButton, Searchbar, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import DatePickerField from '../../components/common/DatePickerField';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,22 +11,38 @@ import { useRepairStore, consumeRepairJustCreated, consumePendingDashboardFilter
 import RepairCard from '../../components/repairs/RepairCard';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
-import { RepairStatus, STATUS_COLORS } from '../../constants/statusOptions';
+import { RepairStatus } from '../../constants/statusOptions';
 import { formatCurrency } from '../../utils/formatters';
+import { ReportPeriod } from '../../repositories/reportsRepository';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 type FilterValue = RepairStatus | '' | 'not_paid';
-type DateRange = 'all' | 'today' | 'week' | 'month';
-
-const DATE_RANGES: { value: DateRange; label: string }[] = [
-  { value: 'all',   label: 'All Time' },
-  { value: 'today', label: 'Today' },
-  { value: 'week',  label: 'This Week' },
-  { value: 'month', label: 'This Month' },
-];
 
 type SortBy = 'newest' | 'oldest' | 'status' | 'customer';
+
+const PERIODS: { value: ReportPeriod; label: string; icon: string }[] = [
+  { value: 'all_time', label: 'All Time', icon: 'infinity' },
+  { value: 'weekly',   label: 'Weekly',   icon: 'calendar-week' },
+  { value: 'monthly',  label: 'Monthly',  icon: 'calendar-month' },
+  { value: 'yearly',   label: 'Yearly',   icon: 'calendar' },
+  { value: 'custom',   label: 'Custom',   icon: 'calendar-range' },
+];
+
+function toIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function fromIso(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+function getWeekRange(date: Date): { start: Date; end: Date } {
+  const day = date.getDay();
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+  const start = new Date(date); start.setDate(date.getDate() + diffToMonday);
+  const end = new Date(start);   end.setDate(start.getDate() + 6);
+  return { start, end };
+}
 
 const SORT_OPTIONS: { value: SortBy; label: string; icon: string }[] = [
   { value: 'newest',   label: 'Newest First', icon: 'sort-calendar-descending' },
@@ -42,31 +59,6 @@ const STATUS_SORT_ORDER: Record<RepairStatus, number> = {
   not_repaired: 4,
 };
 
-const STATUS_FILTERS: { value: FilterValue; label: string; color?: string }[] = [
-  { value: '',             label: 'All' },
-  { value: 'pending',      label: 'Pending',      color: STATUS_COLORS.pending },
-  { value: 'in_progress',  label: 'In Progress',  color: STATUS_COLORS.in_progress },
-  { value: 'ready',        label: 'Ready',        color: STATUS_COLORS.ready },
-  { value: 'delivered',    label: 'Delivered',    color: STATUS_COLORS.delivered },
-  { value: 'not_repaired', label: 'Not Repaired', color: Colors.error },
-  { value: 'not_paid',     label: 'Not Paid',     color: Colors.warning },
-];
-
-function getDateFrom(range: DateRange): string | undefined {
-  if (range === 'all') return undefined;
-  const now = new Date();
-  if (range === 'today') {
-    return now.toISOString().split('T')[0];
-  }
-  if (range === 'week') {
-    const d = new Date(now);
-    d.setDate(d.getDate() - d.getDay());
-    return d.toISOString().split('T')[0];
-  }
-  if (range === 'month') {
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-  }
-}
 
 const hdrBtn: any = { padding: 5, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.18)' };
 const hdrBtnActive: any = { backgroundColor: 'rgba(255,255,255,0.4)' };
@@ -77,7 +69,10 @@ export default function RepairsListScreen() {
   const { repairs, isLoading, statusCounts, notPaidCount, fetchRepairs, advanceStatus } = useRepairStore();
   const [search, setSearch] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<Set<FilterValue>>(new Set());
-  const [dateRange, setDateRange] = useState<DateRange>('month');
+  const [period, setPeriod] = useState<ReportPeriod>('monthly');
+  const [targetDate, setTargetDate] = useState(new Date());
+  const [customFrom, setCustomFrom] = useState(() => toIso(getWeekRange(new Date()).start));
+  const [customTo, setCustomTo] = useState(() => toIso(new Date()));
   const [searchVisible, setSearchVisible] = useState(false);
   const [sortVisible, setSortVisible] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('newest');
@@ -98,45 +93,49 @@ export default function RepairsListScreen() {
     }
   }, [repairs, sortBy]);
 
-  const toggleFilter = (value: FilterValue) => {
-    if (value === '') {
-      // "All" clears everything
-      setSelectedFilters(new Set());
-      return;
+  const getDateRange = useCallback((): { dateFrom?: string; dateTo?: string } => {
+    if (period === 'all_time') return {};
+    if (period === 'custom') return { dateFrom: customFrom, dateTo: customTo };
+    if (period === 'weekly') {
+      const { start, end } = getWeekRange(targetDate);
+      return { dateFrom: toIso(start), dateTo: toIso(end) };
     }
-    setSelectedFilters(prev => {
-      const next = new Set(prev);
-      if (next.has(value)) {
-        next.delete(value);
-      } else {
-        next.add(value);
-      }
-      return next;
+    if (period === 'monthly') {
+      const start = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+      const end   = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
+      return { dateFrom: toIso(start), dateTo: toIso(end) };
+    }
+    if (period === 'yearly') {
+      return { dateFrom: `${targetDate.getFullYear()}-01-01`, dateTo: `${targetDate.getFullYear()}-12-31` };
+    }
+    return {};
+  }, [period, targetDate, customFrom, customTo]);
+
+  const navigateDate = (dir: 1 | -1) => {
+    setTargetDate(prev => {
+      const d = new Date(prev);
+      if (period === 'monthly') d.setMonth(d.getMonth() + dir);
+      else if (period === 'yearly') d.setFullYear(d.getFullYear() + dir);
+      else if (period === 'weekly') d.setDate(d.getDate() + dir * 7);
+      return d;
     });
   };
 
-  const load = useCallback(() => {
-    // Repairs list uses only its own local date range — never the dashboard's global period filter
-    const dateFrom = getDateFrom(dateRange);
-
-    const hasNotPaid = selectedFilters.has('not_paid');
-    const statusList = [...selectedFilters].filter(f => f !== 'not_paid') as RepairStatus[];
-
-    if (hasNotPaid && statusList.length === 0) {
-      // Only "Not Paid" selected
-      fetchRepairs({ not_paid: true, search: search || undefined });
-    } else if (hasNotPaid && statusList.length > 0) {
-      // Mix: fetch the statuses + a separate not_paid — just fetch all & let the chips show intent
-      fetchRepairs({ statuses: statusList, not_paid: true, search: search || undefined, dateFrom });
-    } else if (statusList.length === 1) {
-      fetchRepairs({ status: statusList[0], search: search || undefined, dateFrom });
-    } else if (statusList.length > 1) {
-      fetchRepairs({ statuses: statusList, search: search || undefined, dateFrom });
-    } else {
-      // Nothing selected = All
-      fetchRepairs({ search: search || undefined, dateFrom });
+  const navLabel = () => {
+    if (period === 'monthly') return targetDate.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' });
+    if (period === 'yearly')  return String(targetDate.getFullYear());
+    if (period === 'weekly') {
+      const { start, end } = getWeekRange(targetDate);
+      const fmt = (d: Date) => d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+      return `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}`;
     }
-  }, [selectedFilters, search, dateRange]);
+    return '';
+  };
+
+  const load = useCallback(() => {
+    const { dateFrom, dateTo } = getDateRange();
+    fetchRepairs({ search: search || undefined, dateFrom, dateTo });
+  }, [search, getDateRange]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -222,6 +221,41 @@ export default function RepairsListScreen() {
         />
       )}
 
+
+      {/* Period filter — always visible */}
+      <View style={styles.filterPanel}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {PERIODS.map(p => {
+            const active = period === p.value;
+            return (
+              <TouchableOpacity key={p.value}
+                style={[styles.periodChip, active && styles.periodChipActive]}
+                onPress={() => { setPeriod(p.value); setTargetDate(new Date()); }}
+                activeOpacity={0.75}>
+                <MaterialCommunityIcons name={p.icon as any} size={13} color={active ? '#fff' : Colors.textSecondary} />
+                <Text style={[styles.periodChipLabel, active && { color: '#fff' }]}>{p.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        {(period === 'monthly' || period === 'yearly' || period === 'weekly') && (
+          <View style={styles.navRow}>
+            <IconButton icon="chevron-left" size={20} iconColor={Colors.primary} onPress={() => navigateDate(-1)} />
+            <Text style={styles.navLabel}>{navLabel()}</Text>
+            <IconButton icon="chevron-right" size={20} iconColor={Colors.primary} onPress={() => navigateDate(1)} />
+          </View>
+        )}
+        {period === 'custom' && (
+          <View style={styles.customRow}>
+            <View style={styles.customField}>
+              <DatePickerField label="From" value={customFrom} onChange={setCustomFrom} maxDate={fromIso(customTo)} />
+            </View>
+            <View style={styles.customField}>
+              <DatePickerField label="To" value={customTo} onChange={setCustomTo} minDate={fromIso(customFrom)} maxDate={new Date()} />
+            </View>
+          </View>
+        )}
+      </View>
 
       {/* Sort options */}
       {sortVisible && (
@@ -336,9 +370,18 @@ const styles = StyleSheet.create({
   dateChipLabel: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
   dateChipLabelActive: { color: '#fff' },
 
-  // Status filter chips
+  // Period filter panel
+  filterPanel: { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  filterRow: { paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
+  periodChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background },
+  periodChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  periodChipLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+  navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderTopWidth: 1, borderTopColor: Colors.border },
+  navLabel: { fontSize: 14, fontWeight: '700', color: Colors.text, minWidth: 160, textAlign: 'center' },
+  customRow: { flexDirection: 'row', gap: 10, padding: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+  customField: { flex: 1 },
+  // Sort / search chips
   filterScroll: { flexGrow: 0, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  filterRow: { paddingHorizontal: 12, paddingVertical: 8, gap: 7, alignItems: 'center' },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 6,
