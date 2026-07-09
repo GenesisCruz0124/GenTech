@@ -180,9 +180,20 @@ export default function RepairsListScreen() {
   const loadRef = useRef(load);
   useEffect(() => { loadRef.current = load; }, [load]);
 
-  // Skip flags — set together by the params effect so neither the focus reload nor
-  // the load-change effect can override the dashboard-driven filtered fetch.
-  const skipNextFocusLoad = useRef(false);
+  // Track the last navKey we've already processed so we know when a new
+  // dashboard navigation is pending vs already handled.
+  const lastSeenNavKey = useRef<number | undefined>(undefined);
+
+  // Computed DURING RENDER (synchronously, before any effects) so useFocusEffect
+  // can always read the correct value regardless of effect firing order.
+  const incomingNavKey = route.params?.navKey;
+  const hasPendingDashboardParams =
+    incomingNavKey !== undefined && incomingNavKey !== lastSeenNavKey.current;
+  const hasPendingRef = useRef(hasPendingDashboardParams);
+  hasPendingRef.current = hasPendingDashboardParams;
+
+  // Blocks useEffect([load]) from overriding the period-filtered fetch when
+  // the params effect calls setSelectedFilters (which changes the load reference).
   const skipNextLoadEffect = useRef(false);
 
   // Apply filter from dashboard navigation — navKey changes on every tap so this
@@ -190,10 +201,10 @@ export default function RepairsListScreen() {
   useEffect(() => {
     const navKey = route.params?.navKey;
     if (navKey === undefined) return;
+    lastSeenNavKey.current = navKey; // mark as handled
     const incoming = (route.params?.initialFilter ?? '') as FilterValue;
     const dateFrom = route.params?.dateFrom as string | undefined;
     const dateTo = route.params?.dateTo as string | undefined;
-    skipNextFocusLoad.current = true;
     skipNextLoadEffect.current = true;
     if (incoming === '') {
       setSelectedFilters(new Set());
@@ -208,10 +219,11 @@ export default function RepairsListScreen() {
     }
   }, [route.params?.navKey]);
 
-  // Reload on focus — fires only on actual screen focus/blur events, not when load changes.
+  // Reload on focus — hasPendingRef is set synchronously during render so it is
+  // always current here even if this fires before the params effect.
   useFocusEffect(useCallback(() => {
-    if (skipNextFocusLoad.current) {
-      skipNextFocusLoad.current = false;
+    if (hasPendingRef.current) {
+      // Dashboard navigation incoming — params effect will run the filtered fetch.
       return;
     }
     if (consumeRepairJustCreated()) {
