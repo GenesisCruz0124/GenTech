@@ -6,7 +6,6 @@ import { Colors } from '../constants/colors';
 
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import RepairsListScreen from '../screens/repairs/RepairsListScreen';
-import PartsListScreen from '../screens/parts/PartsListScreen';
 import MoreMenuScreen from '../screens/more/MoreMenuScreen';
 
 const Tab = createBottomTabNavigator<TabParamList>();
@@ -25,7 +24,6 @@ export default function BottomTabNavigator() {
           const icons: Record<string, string> = {
             Dashboard:  'chart-bar',
             Repairs:    'wrench',
-            Parts:      'package-variant',
             More:       'cog-outline',
           };
           return (
@@ -39,7 +37,6 @@ export default function BottomTabNavigator() {
       })}
     >
       <Tab.Screen name="Repairs"    component={RepairsListScreen}   options={{ title: 'Repairs' }} />
-      <Tab.Screen name="Parts"      component={PartsListScreen}     options={{ title: 'Stocks', tabBarLabel: 'Stocks' }} />
       <Tab.Screen name="Dashboard"  component={DashboardScreen}    options={{ title: 'GenTech Stats', tabBarLabel: 'Stats' }} />
       <Tab.Screen name="More"       component={MoreMenuScreen}      options={{ title: 'Settings', tabBarLabel: 'Settings' }} />
     </Tab.Navigator>

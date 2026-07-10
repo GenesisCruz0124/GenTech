@@ -28,8 +28,9 @@ export type RootStackParamList = {
   ExpenseDetail: { period: import('../repositories/reportsRepository').ReportPeriod; targetDate?: string; dateTo?: string };
   FinancialDetail: { kind: import('../repositories/reportsRepository').FinancialKind; period: import('../repositories/reportsRepository').ReportPeriod; targetDate?: string; dateTo?: string };
   DeviceSaleForm: { deviceModel?: string } | undefined;
-  DevicePurchaseForm: undefined;
+  DevicePurchaseForm: { purchaseId?: number } | undefined;
   DevicesList: undefined;
+  StocksList: undefined;
   DeviceSaleDetail: { saleId: number };
   SyncSetup: undefined;
   Consumables: undefined;
@@ -38,6 +39,5 @@ export type RootStackParamList = {
 export type TabParamList = {
   Dashboard: undefined;
   Repairs: { initialFilter?: string; dateFrom?: string; dateTo?: string; navKey?: number } | undefined;
-  Parts: undefined;
   More: undefined;
 };

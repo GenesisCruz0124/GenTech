@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, HelperText, TextInput, Text } from 'react-native-paper';
 import { useForm, Controller } from 'react-hook-form';
@@ -10,6 +10,7 @@ import { useDeviceStore } from '../../store/deviceStore';
 import { useCustomerStore } from '../../store/customerStore';
 import { searchCustomers, Customer } from '../../repositories/customerRepository';
 import { searchDeviceModels, DeviceModel } from '../../repositories/deviceModelRepository';
+import { getDevicePurchaseById, updateDevicePurchase } from '../../repositories/devicePurchaseRepository';
 import ImagePickerField from '../../components/common/ImagePickerField';
 import { Colors } from '../../constants/colors';
 
@@ -24,11 +25,15 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-export default function DevicePurchaseFormScreen({ navigation }: Props) {
+export default function DevicePurchaseFormScreen({ navigation, route }: Props) {
+  const purchaseId = route.params?.purchaseId;
+  const isEdit = !!purchaseId;
+
   const { addPurchase } = useDeviceStore();
   const { upsertByPhone } = useCustomerStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(isEdit);
 
   // Customer autocomplete
   const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
@@ -43,23 +48,50 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
     defaultValues: { sellerName: '', deviceModel: '', purchasePrice: '', notes: '' },
   });
 
+  useEffect(() => {
+    navigation.setOptions({ title: isEdit ? 'Edit Purchase' : 'Buy Device' });
+    if (!isEdit) return;
+    (async () => {
+      const p = await getDevicePurchaseById(purchaseId!);
+      if (p) {
+        setValue('sellerName', p.customer_name ?? '');
+        setValue('deviceModel', p.device_model);
+        setValue('purchasePrice', String(p.purchase_price));
+        setValue('notes', p.notes ?? '');
+      }
+      setLoadingEdit(false);
+    })();
+  }, [isEdit, purchaseId]);
+
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      const customerId = await upsertByPhone({ name: data.sellerName, phone: '' });
-      await addPurchase({
-        customer_id: customerId,
-        device_name: data.deviceModel,
-        device_model: data.deviceModel,
-        purchase_price: parseFloat(data.purchasePrice),
-        notes: data.notes || undefined,
-        image_uri: imageUri || undefined,
-      });
+      if (isEdit) {
+        await updateDevicePurchase(purchaseId!, {
+          device_name: data.deviceModel,
+          device_model: data.deviceModel,
+          purchase_price: parseFloat(data.purchasePrice),
+          notes: data.notes || null,
+          image_uri: imageUri !== null ? imageUri : undefined,
+        });
+      } else {
+        const customerId = await upsertByPhone({ name: data.sellerName, phone: '' });
+        await addPurchase({
+          customer_id: customerId,
+          device_name: data.deviceModel,
+          device_model: data.deviceModel,
+          purchase_price: parseFloat(data.purchasePrice),
+          notes: data.notes || undefined,
+          image_uri: imageUri || undefined,
+        });
+      }
       navigation.goBack();
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (loadingEdit) return null;
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -85,6 +117,7 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
               mode="outlined"
               style={styles.input}
               error={!!errors.sellerName}
+              editable={!isEdit}
             />
             {showCustomerSuggestions && (
               <View style={styles.suggestionBox}>
@@ -154,7 +187,7 @@ export default function DevicePurchaseFormScreen({ navigation }: Props) {
 
         </View>
         <Button mode="contained" icon="check-circle" onPress={handleSubmit(onSubmit)} loading={isSubmitting} disabled={isSubmitting} style={styles.button} contentStyle={styles.buttonContent}>
-          Record Purchase
+          {isEdit ? 'Save Changes' : 'Record Purchase'}
         </Button>
       </ScrollView>
     </KeyboardAvoidingView>

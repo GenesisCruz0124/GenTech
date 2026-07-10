@@ -248,6 +248,14 @@ export default function MoreMenuScreen() {
           style={styles.item}
         />
         <List.Item
+          title="Stocks"
+          description="View and manage parts inventory"
+          left={props => <List.Icon {...props} icon="package-variant" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('StocksList')}
+          style={styles.item}
+        />
+        <List.Item
           title="Devices"
           description="View and manage device sales & purchases"
           left={props => <List.Icon {...props} icon="cellphone-arrow-down" color={Colors.primary} />}

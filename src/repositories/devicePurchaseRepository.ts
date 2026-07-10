@@ -1,5 +1,5 @@
 import { getDB } from '../db/database';
-import { trackInsert, trackDelete, getUuid } from '../services/syncTrackHelpers';
+import { trackInsert, trackDelete, trackUpdate, getUuid } from '../services/syncTrackHelpers';
 
 export interface DevicePurchase {
   id: number;
@@ -13,6 +13,15 @@ export interface DevicePurchase {
   created_at: string;
   customer_name?: string;
   customer_phone?: string;
+}
+
+export interface UpdateDevicePurchaseInput {
+  device_name?: string;
+  device_model?: string;
+  imei?: string | null;
+  purchase_price?: number;
+  notes?: string | null;
+  image_uri?: string | null;
 }
 
 export interface CreateDevicePurchaseInput {
@@ -55,6 +64,22 @@ export async function getDevicePurchaseById(id: number): Promise<DevicePurchase 
      WHERE dp.id = ?`,
     [id]
   );
+}
+
+export async function updateDevicePurchase(id: number, input: UpdateDevicePurchaseInput): Promise<void> {
+  const db = await getDB();
+  const fields: string[] = [];
+  const values: any[] = [];
+  if (input.device_name !== undefined) { fields.push('device_name = ?'); values.push(input.device_name); }
+  if (input.device_model !== undefined) { fields.push('device_model = ?'); values.push(input.device_model); }
+  if (input.imei !== undefined) { fields.push('imei = ?'); values.push(input.imei); }
+  if (input.purchase_price !== undefined) { fields.push('purchase_price = ?'); values.push(input.purchase_price); }
+  if (input.notes !== undefined) { fields.push('notes = ?'); values.push(input.notes); }
+  if (input.image_uri !== undefined) { fields.push('image_uri = ?'); values.push(input.image_uri); }
+  if (fields.length === 0) return;
+  values.push(id);
+  await db.runAsync(`UPDATE device_purchases SET ${fields.join(', ')} WHERE id = ?`, values);
+  await trackUpdate(db, 'device_purchases', id);
 }
 
 export async function deleteDevicePurchase(id: number): Promise<void> {

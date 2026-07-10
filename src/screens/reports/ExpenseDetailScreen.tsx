@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, TextInput as RNTextInput, TouchableOpacity, View } from 'react-native';
 import { Button, List, Modal, Portal, Text } from 'react-native-paper';
-import { useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useRoute, useNavigation, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { getExpenseDetails, ExpenseItem } from '../../repositories/reportsRepository';
 import { tagPurchaseToRepair } from '../../repositories/partsRepository';
 import { listRepairs, RepairWithCustomer } from '../../repositories/repairRepository';
@@ -11,9 +12,11 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 import { RootStackParamList } from '../../navigation/types';
 
 type Route = RouteProp<RootStackParamList, 'ExpenseDetail'>;
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export default function ExpenseDetailScreen() {
   const route = useRoute<Route>();
+  const navigation = useNavigation<Nav>();
   const { period, targetDate, dateTo } = route.params;
   const [items, setItems] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -95,6 +98,14 @@ export default function ExpenseDetailScreen() {
             right={() => (
               <View style={styles.rightCol}>
                 <Text style={styles.amount}>{formatCurrency(item.amount)}</Text>
+                {item.type === 'device' && (
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate('DevicePurchaseForm', { purchaseId: parseInt(item.id.split('-')[1]) })}
+                    style={styles.tagBtn}
+                  >
+                    <Text style={styles.tagBtnText}>Edit</Text>
+                  </TouchableOpacity>
+                )}
                 {item.type === 'parts' && (
                   <TouchableOpacity onPress={() => openTagModal(item)} style={styles.tagBtn}>
                     <Text style={styles.tagBtnText}>
