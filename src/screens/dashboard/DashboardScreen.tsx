@@ -11,7 +11,9 @@ import { RootStackParamList } from '../../navigation/types';
 import {
   getTotalSummary,
   getDailyRepairStats,
+  getIncomeTrend,
   DailyRepairStat,
+  TrendPoint,
   ReportPeriod,
   TotalSummary,
   FinancialKind,
@@ -70,6 +72,7 @@ export default function DashboardScreen() {
   });
   const [loading, setLoading] = useState(false);
   const [dailyStats, setDailyStats] = useState<DailyRepairStat[]>([]);
+  const [trend, setTrend] = useState<TrendPoint[]>([]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerRight: undefined } as any);
@@ -122,12 +125,14 @@ export default function DashboardScreen() {
     try {
       const { dateFrom, dateTo } = getDateRange();
 
-      const [s, daily] = await Promise.all([
+      const [s, daily, trendData] = await Promise.all([
         getTotalSummary(period, dateFrom, dateTo),
         getDailyRepairStats(),
+        getIncomeTrend(6),
       ]);
       setSummary(s);
       setDailyStats(daily);
+      setTrend(trendData);
       getSetting('shop_name').then(name => {
         navigation.setOptions({ title: name || 'GenTech Repairs Monitoring' } as any);
       }).catch(() => {});
@@ -309,6 +314,52 @@ export default function DashboardScreen() {
                     </View>
                     <Text style={styles.chartDayLabel}>{dayLabel}</Text>
                     <Text style={styles.chartDateLabel}>{dateLabel}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        );
+      })()}
+
+      {/* ── INCOME VS EXPENSE TREND ──────────────── */}
+      {trend.length > 0 && (() => {
+        const maxVal = Math.max(1, ...trend.map(t => Math.max(t.income, t.expense)));
+        const BAR_MAX_H = 80;
+        const abbr = (n: number) =>
+          n >= 10000 ? `${Math.round(n / 1000)}k`
+          : n >= 1000 ? `${(n / 1000).toFixed(1)}k`
+          : String(Math.round(n));
+        return (
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>Income vs Expense — Last 6 Months</Text>
+            <View style={styles.chartLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.primary }]} />
+                <Text style={styles.legendLabel}>Income</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
+                <Text style={styles.legendLabel}>Expense</Text>
+              </View>
+            </View>
+            <View style={styles.chartBars}>
+              {trend.map((t, i) => {
+                const incH = Math.max(2, Math.round((t.income  / maxVal) * BAR_MAX_H));
+                const expH = Math.max(2, Math.round((t.expense / maxVal) * BAR_MAX_H));
+                return (
+                  <View key={i} style={styles.chartBarGroup}>
+                    <View style={styles.chartBarPair}>
+                      <View style={styles.chartBarCol}>
+                        {t.income  > 0 && <Text style={[styles.chartBarVal, { color: Colors.primary }]}>{abbr(t.income)}</Text>}
+                        <View style={[styles.chartBar, { height: incH, backgroundColor: Colors.primary }]} />
+                      </View>
+                      <View style={styles.chartBarCol}>
+                        {t.expense > 0 && <Text style={[styles.chartBarVal, { color: Colors.error }]}>{abbr(t.expense)}</Text>}
+                        <View style={[styles.chartBar, { height: expH, backgroundColor: Colors.error }]} />
+                      </View>
+                    </View>
+                    <Text style={styles.chartDayLabel}>{t.label}</Text>
                   </View>
                 );
               })}

@@ -563,6 +563,66 @@ export interface DailyRepairStat {
   delivered: number;
 }
 
+export interface TrendPoint {
+  label: string;
+  income: number;
+  expense: number;
+}
+
+export async function getIncomeTrend(months = 6): Promise<TrendPoint[]> {
+  const db = await getDB();
+  const now = new Date();
+  const keys: string[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const from = keys[0];
+  const to   = keys[keys.length - 1];
+
+  const safe = async <T>(p: Promise<T[]>): Promise<T[]> => { try { return await p; } catch { return []; } };
+
+  const [repairRows, saleRows, ppRows, dpRows, rpRows, cpRows] = await Promise.all([
+    safe(db.getAllAsync<{ p: string; v: number }>(
+      `SELECT strftime('%Y-%m', created_at) p, SUM(estimated_cost) v
+       FROM repairs WHERE status='delivered' AND strftime('%Y-%m',created_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
+    safe(db.getAllAsync<{ p: string; v: number }>(
+      `SELECT strftime('%Y-%m', sold_at) p, SUM(sale_price) v
+       FROM device_sales WHERE strftime('%Y-%m',sold_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
+    safe(db.getAllAsync<{ p: string; v: number }>(
+      `SELECT strftime('%Y-%m', purchased_at) p, SUM(quantity*cost_price) v
+       FROM parts_purchases WHERE strftime('%Y-%m',purchased_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
+    safe(db.getAllAsync<{ p: string; v: number }>(
+      `SELECT strftime('%Y-%m', purchased_at) p, SUM(purchase_price) v
+       FROM device_purchases WHERE strftime('%Y-%m',purchased_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
+    safe(db.getAllAsync<{ p: string; v: number }>(
+      `SELECT strftime('%Y-%m', created_at) p, SUM(actual_cost*quantity) v
+       FROM repair_parts WHERE actual_cost>0 AND strftime('%Y-%m',created_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
+    safe(db.getAllAsync<{ p: string; v: number }>(
+      `SELECT strftime('%Y-%m', created_at) p, SUM(quantity*unit_cost) v
+       FROM consumable_purchases WHERE strftime('%Y-%m',created_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
+  ]);
+
+  const inc: Record<string, number> = {};
+  const exp: Record<string, number> = {};
+  for (const r of repairRows) inc[r.p] = (inc[r.p] ?? 0) + (r.v ?? 0);
+  for (const r of saleRows)   inc[r.p] = (inc[r.p] ?? 0) + (r.v ?? 0);
+  for (const r of ppRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
+  for (const r of dpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
+  for (const r of rpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
+  for (const r of cpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
+
+  return keys.map(key => {
+    const [y, m] = key.split('-');
+    const label = new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-PH', { month: 'short' });
+    return {
+      label,
+      income:  Math.round((inc[key] ?? 0) * 100) / 100,
+      expense: Math.round((exp[key] ?? 0) * 100) / 100,
+    };
+  });
+}
+
 export async function getDailyRepairStats(): Promise<DailyRepairStat[]> {
   const db = await getDB();
 
