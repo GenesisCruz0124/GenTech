@@ -582,16 +582,15 @@ export async function getIncomeTrend(months = 6): Promise<TrendPoint[]> {
 
   const safe = async <T>(p: Promise<T[]>): Promise<T[]> => { try { return await p; } catch { return []; } };
 
-  const [repairRows, saleRows, ppRows, dpRows, rpRows, cpRows] = await Promise.all([
+  // Expense definition matches getTotalSummary: device purchases + repair parts used + consumables.
+  // parts_purchases (stock restock) is intentionally excluded — shown separately as "Stock Purchase".
+  const [repairRows, saleRows, dpRows, rpRows, cpRows] = await Promise.all([
     safe(db.getAllAsync<{ p: string; v: number }>(
       `SELECT strftime('%Y-%m', created_at) p, SUM(estimated_cost) v
        FROM repairs WHERE status='delivered' AND strftime('%Y-%m',created_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
     safe(db.getAllAsync<{ p: string; v: number }>(
       `SELECT strftime('%Y-%m', sold_at) p, SUM(sale_price) v
        FROM device_sales WHERE strftime('%Y-%m',sold_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
-    safe(db.getAllAsync<{ p: string; v: number }>(
-      `SELECT strftime('%Y-%m', purchased_at) p, SUM(quantity*cost_price) v
-       FROM parts_purchases WHERE strftime('%Y-%m',purchased_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
     safe(db.getAllAsync<{ p: string; v: number }>(
       `SELECT strftime('%Y-%m', purchased_at) p, SUM(purchase_price) v
        FROM device_purchases WHERE strftime('%Y-%m',purchased_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
@@ -607,7 +606,6 @@ export async function getIncomeTrend(months = 6): Promise<TrendPoint[]> {
   const exp: Record<string, number> = {};
   for (const r of repairRows) inc[r.p] = (inc[r.p] ?? 0) + (r.v ?? 0);
   for (const r of saleRows)   inc[r.p] = (inc[r.p] ?? 0) + (r.v ?? 0);
-  for (const r of ppRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
   for (const r of dpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
   for (const r of rpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
   for (const r of cpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
