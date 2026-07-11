@@ -37,9 +37,13 @@ export default function MoreMenuScreen() {
     setUpdateChecking(true);
     try {
       const res = await fetch(
-        'https://api.github.com/repos/GenesisCoTech0124/GenTech/releases/latest',
+        'https://api.github.com/repos/genesiscruz0124/gentech/releases/latest',
         { headers: { Accept: 'application/vnd.github+json' } }
       );
+      if (res.status === 404) {
+        setUpdateResult({ status: 'up_to_date', latestVersion: Constants.expoConfig?.version });
+        return;
+      }
       if (!res.ok) throw new Error(`Could not reach update server (HTTP ${res.status}).`);
       const data = await res.json();
       const latestTag: string = data.tag_name ?? '';
