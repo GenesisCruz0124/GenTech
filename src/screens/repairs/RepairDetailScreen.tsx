@@ -103,6 +103,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
   // Customer editing
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [editCustomerInput, setEditCustomerInput] = useState('');
+  const [editCustomerPhone, setEditCustomerPhone] = useState('');
   const [customerSuggestions2, setCustomerSuggestions2] = useState<any[]>([]);
   const [customerSaving, setCustomerSaving] = useState(false);
 
@@ -435,45 +436,38 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                       ))}
                     </View>
                   )}
+                  <TextInput mode="outlined" dense label="Phone number" value={editCustomerPhone}
+                    onChangeText={setEditCustomerPhone}
+                    keyboardType="phone-pad"
+                    style={[styles.inlineInput, { marginTop: 6 }]} />
                   <Button mode="contained" compact loading={customerSaving} style={styles.inlineSaveBtn}
                     onPress={async () => {
                       setCustomerSaving(true);
-                      const { upsertCustomerByPhone } = await import('../../repositories/customerRepository');
-                      const cid = await upsertCustomerByPhone({ name: editCustomerInput.trim(), phone: repair.customer_phone || '' });
+                      const { upsertCustomerByPhone, updateCustomer } = await import('../../repositories/customerRepository');
+                      const cid = await upsertCustomerByPhone({ name: editCustomerInput.trim(), phone: editCustomerPhone.trim() });
                       await editRepair(repairId, { customer_id: cid });
+                      if (repair.customer_id) await updateCustomer(repair.customer_id, { phone: editCustomerPhone.trim() });
                       setCustomerSaving(false); setEditingCustomer(false); load();
                     }}>Save</Button>
                 </View>
               ) : (
-                <Text style={styles.fieldValue}>{repair.customer_name}</Text>
+                <>
+                  <Text style={styles.fieldValue}>{repair.customer_name}</Text>
+                  {repair.customer_phone ? (
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${repair.customer_phone}`)}>
+                      <Text style={[styles.fieldSub, { color: Colors.primary }]}>{repair.customer_phone}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.fieldSub}>No phone number</Text>
+                  )}
+                </>
               )}
             </View>
             <TouchableOpacity style={styles.editIconBtn}
-              onPress={() => { setEditCustomerInput(repair.customer_name); setCustomerSuggestions2([]); setEditingCustomer(v => !v); }}>
+              onPress={() => { setEditCustomerInput(repair.customer_name); setEditCustomerPhone(repair.customer_phone ?? ''); setCustomerSuggestions2([]); setEditingCustomer(v => !v); }}>
               <MaterialCommunityIcons name={editingCustomer ? 'close' : 'pencil-outline'} size={15} color={Colors.primary} />
             </TouchableOpacity>
           </View>
-
-          {/* Contact number row */}
-          {repair.customer_phone ? (
-            <>
-              <View style={styles.rowDivider} />
-              <View style={[styles.fieldRow, { alignItems: 'center' }]}>
-                <View style={styles.fieldIconWrap}>
-                  <MaterialCommunityIcons name="phone-outline" size={18} color={Colors.primary} />
-                </View>
-                <View style={styles.fieldBody}>
-                  <Text style={styles.fieldLabel}>Contact Number</Text>
-                  <Text style={styles.fieldValue}>{repair.customer_phone}</Text>
-                </View>
-                <TouchableOpacity
-                  style={[styles.editIconBtn, { backgroundColor: Colors.success + '18' }]}
-                  onPress={() => Linking.openURL(`tel:${repair.customer_phone}`)}>
-                  <MaterialCommunityIcons name="phone" size={18} color={Colors.success} />
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : null}
 
           <View style={styles.rowDivider} />
 
@@ -1407,6 +1401,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.text,
     lineHeight: 21,
+    marginTop: 2,
+  },
+  fieldSub: {
+    fontSize: 12,
+    color: Colors.textSecondary,
     marginTop: 2,
   },
   fieldValueLarge: {
