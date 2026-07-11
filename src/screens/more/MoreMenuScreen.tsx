@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Clipboard, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, Linking, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button, List, Divider, Modal, Portal, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -23,6 +23,43 @@ export default function MoreMenuScreen() {
   const [resetMenuVisible, setResetMenuVisible] = useState(false);
   const [seedSql, setSeedSql] = useState('');
   const [seedVisible, setSeedVisible] = useState(false);
+
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [updateResult, setUpdateResult] = useState<{
+    status: 'up_to_date' | 'available' | 'error';
+    latestVersion?: string;
+    downloadUrl?: string;
+    message?: string;
+  } | null>(null);
+
+  const checkForUpdate = async () => {
+    setUpdateChecking(true);
+    try {
+      const res = await fetch(
+        'https://api.github.com/repos/GenesisCoTech0124/GenTech/releases/latest',
+        { headers: { Accept: 'application/vnd.github+json' } }
+      );
+      if (!res.ok) throw new Error(`Could not reach update server (HTTP ${res.status}).`);
+      const data = await res.json();
+      const latestTag: string = data.tag_name ?? '';
+      const latestVersion = latestTag.replace(/^v/, '');
+      const currentVersion: string = Constants.expoConfig?.version ?? '0.0.0';
+      const apkAsset = (data.assets ?? []).find((a: any) => String(a.name).endsWith('.apk'));
+      const downloadUrl: string = apkAsset?.browser_download_url ?? data.html_url;
+      const isNewer = compareVersions(latestVersion, currentVersion) > 0;
+      setUpdateResult(
+        isNewer
+          ? { status: 'available', latestVersion, downloadUrl }
+          : { status: 'up_to_date', latestVersion }
+      );
+    } catch (e: any) {
+      setUpdateResult({ status: 'error', message: e?.message ?? 'Could not check for updates.' });
+    } finally {
+      setUpdateChecking(false);
+      setUpdateModalVisible(true);
+    }
+  };
 
   const handleExportSeed = async () => {
     try {
@@ -112,6 +149,16 @@ export default function MoreMenuScreen() {
     },
   };
 
+  const compareVersions = (a: string, b: string): number => {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < 3; i++) {
+      const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  };
+
   const handleConfirm = async () => {
     if (!confirmType) return;
     await CONFIRM_CONFIG[confirmType].action();
@@ -177,6 +224,19 @@ export default function MoreMenuScreen() {
           left={props => <List.Icon {...props} icon="cloud-sync-outline" color={Colors.primary} />}
           right={props => <List.Icon {...props} icon="chevron-right" />}
           onPress={() => navigation.navigate('SyncSetup')}
+          style={styles.item}
+        />
+        <List.Item
+          title="Check for Updates"
+          description={`Installed: v${Constants.expoConfig?.version ?? '—'}`}
+          left={props => <List.Icon {...props} icon="cloud-download-outline" color={Colors.primary} />}
+          right={props =>
+            updateChecking
+              ? <ActivityIndicator size="small" color={Colors.primary} style={{ marginRight: 16, alignSelf: 'center' }} />
+              : <List.Icon {...props} icon="chevron-right" />
+          }
+          onPress={checkForUpdate}
+          disabled={updateChecking}
           style={styles.item}
         />
       </List.Section>
@@ -347,6 +407,36 @@ export default function MoreMenuScreen() {
         </Modal>
       </Portal>
 
+      {/* Update result modal */}
+      <Portal>
+        <Modal visible={updateModalVisible} onDismiss={() => setUpdateModalVisible(false)} contentContainerStyle={styles.updateModal}>
+          <MaterialCommunityIcons
+            name={updateResult?.status === 'available' ? 'rocket-launch-outline' : updateResult?.status === 'error' ? 'alert-circle-outline' : 'check-circle-outline'}
+            size={48}
+            color={updateResult?.status === 'available' ? Colors.primary : updateResult?.status === 'error' ? Colors.error : Colors.success}
+            style={{ alignSelf: 'center', marginBottom: 12 }}
+          />
+          <Text style={styles.updateModalTitle}>
+            {updateResult?.status === 'available' ? 'Update Available' : updateResult?.status === 'error' ? 'Check Failed' : "You're Up to Date"}
+          </Text>
+          <Text style={styles.updateModalBody}>
+            {updateResult?.status === 'available'
+              ? `Version ${updateResult.latestVersion} is available.\nYou have v${Constants.expoConfig?.version}.`
+              : updateResult?.status === 'error'
+              ? updateResult.message
+              : `v${Constants.expoConfig?.version} is the latest version.`}
+          </Text>
+          {updateResult?.status === 'available' && updateResult.downloadUrl && (
+            <Button mode="contained" icon="download" onPress={() => { setUpdateModalVisible(false); Linking.openURL(updateResult.downloadUrl!); }} style={{ marginTop: 16 }}>
+              Download Update
+            </Button>
+          )}
+          <Button mode="outlined" onPress={() => setUpdateModalVisible(false)} style={{ marginTop: 8 }}>
+            Close
+          </Button>
+        </Modal>
+      </Portal>
+
       {/* App version footer */}
       <View style={styles.versionFooter}>
         <Text style={styles.versionText}>
@@ -389,6 +479,9 @@ const styles = StyleSheet.create({
   seedDesc: { fontSize: 12, color: Colors.textSecondary, marginBottom: 10, lineHeight: 18 },
   seedScroll: { backgroundColor: '#1e1e1e', borderRadius: 8, maxHeight: 320, padding: 10 },
   seedCode: { fontSize: 11, color: '#d4d4d4', fontFamily: 'monospace', lineHeight: 18 },
+  updateModal: { backgroundColor: Colors.surface, margin: 24, borderRadius: 16, padding: 24 },
+  updateModalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 6, textAlign: 'center' },
+  updateModalBody: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   versionFooter: { alignItems: 'center', paddingVertical: 28 },
   versionText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
   versionNumber: { fontSize: 12, color: Colors.border, marginTop: 4, letterSpacing: 0.5 },
