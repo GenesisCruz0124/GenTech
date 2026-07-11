@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Clipboard, Linking, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Clipboard, Linking, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as IntentLauncher from 'expo-intent-launcher';
 import { Button, List, Divider, Modal, Portal, Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -26,12 +28,37 @@ export default function MoreMenuScreen() {
 
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
   const [updateResult, setUpdateResult] = useState<{
     status: 'up_to_date' | 'available' | 'error';
     latestVersion?: string;
     downloadUrl?: string;
     message?: string;
   } | null>(null);
+
+  const downloadAndInstall = async (url: string) => {
+    try {
+      setDownloadProgress(0);
+      const dest = FileSystem.cacheDirectory + 'update.apk';
+      const dl = FileSystem.createDownloadResumable(url, dest, {}, (p) => {
+        setDownloadProgress(p.totalBytesExpectedToWrite > 0 ? p.totalBytesWritten / p.totalBytesExpectedToWrite : 0);
+      });
+      const result = await dl.downloadAsync();
+      if (!result?.uri) throw new Error('Download failed — no file returned');
+      setDownloadProgress(null);
+      if (Platform.OS === 'android') {
+        const contentUri = `content://com.gentech.repairshop.provider/apk/update.apk`;
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: 'application/vnd.android.package-archive',
+        });
+      }
+    } catch (e: any) {
+      setDownloadProgress(null);
+      Alert.alert('Install Failed', e?.message ?? 'Could not download or install the update.');
+    }
+  };
 
   const checkForUpdate = async () => {
     setUpdateChecking(true);
@@ -431,9 +458,20 @@ export default function MoreMenuScreen() {
               : `v${Constants.expoConfig?.version} is the latest version.`}
           </Text>
           {updateResult?.status === 'available' && updateResult.downloadUrl && (
-            <Button mode="contained" icon="download" onPress={() => { setUpdateModalVisible(false); Linking.openURL(updateResult.downloadUrl!); }} style={{ marginTop: 16 }}>
-              Download Update
-            </Button>
+            downloadProgress !== null ? (
+              <View style={{ marginTop: 16 }}>
+                <Text style={{ textAlign: 'center', marginBottom: 6, fontSize: 13, color: Colors.textSecondary }}>
+                  Downloading… {Math.round(downloadProgress * 100)}%
+                </Text>
+                <View style={{ height: 6, backgroundColor: Colors.border, borderRadius: 3 }}>
+                  <View style={{ height: 6, width: `${Math.round(downloadProgress * 100)}%` as any, backgroundColor: Colors.primary, borderRadius: 3 }} />
+                </View>
+              </View>
+            ) : (
+              <Button mode="contained" icon="download" onPress={() => downloadAndInstall(updateResult.downloadUrl!)} style={{ marginTop: 16 }}>
+                Install Update
+              </Button>
+            )
           )}
           <Button mode="outlined" onPress={() => setUpdateModalVisible(false)} style={{ marginTop: 8 }}>
             Close
