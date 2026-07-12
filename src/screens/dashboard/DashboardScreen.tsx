@@ -62,7 +62,7 @@ export default function DashboardScreen() {
 
   const { setPeriod: setGlobalPeriod, setTargetDate: setGlobalTargetDate } = useFilterStore();
 
-  const [period, setPeriod] = useState<ReportPeriod>('monthly');
+  const [period, setPeriod] = useState<ReportPeriod>('all_time');
   const [targetDate, setTargetDate] = useState(new Date());
   const [customFrom, setCustomFrom] = useState(() => toIso(getWeekRange(new Date()).start));
   const [customTo, setCustomTo] = useState(() => toIso(new Date()));
