@@ -34,6 +34,7 @@ export default function MoreMenuScreen() {
     latestVersion?: string;
     downloadUrl?: string;
     message?: string;
+    releaseNotes?: string;
   } | null>(null);
 
   const downloadAndInstall = async (url: string) => {
@@ -78,11 +79,12 @@ export default function MoreMenuScreen() {
       const currentVersion: string = Constants.expoConfig?.version ?? '0.0.0';
       const apkAsset = (data.assets ?? []).find((a: any) => String(a.name).endsWith('.apk'));
       const downloadUrl: string = apkAsset?.browser_download_url ?? data.html_url;
+      const releaseNotes: string = (data.body ?? '').trim();
       const isNewer = compareVersions(latestVersion, currentVersion) > 0;
       setUpdateResult(
         isNewer
-          ? { status: 'available', latestVersion, downloadUrl }
-          : { status: 'up_to_date', latestVersion }
+          ? { status: 'available', latestVersion, downloadUrl, releaseNotes }
+          : { status: 'up_to_date', latestVersion, releaseNotes }
       );
     } catch (e: any) {
       setUpdateResult({ status: 'error', message: e?.message ?? 'Could not check for updates.' });
@@ -457,6 +459,9 @@ export default function MoreMenuScreen() {
               ? updateResult.message
               : `v${Constants.expoConfig?.version} is the latest version.`}
           </Text>
+          {updateResult?.releaseNotes ? (
+            <Text style={styles.updateModalNotes}>{updateResult.releaseNotes}</Text>
+          ) : null}
           {updateResult?.status === 'available' && updateResult.downloadUrl && (
             downloadProgress !== null ? (
               <View style={{ marginTop: 16 }}>
@@ -524,6 +529,7 @@ const styles = StyleSheet.create({
   updateModal: { backgroundColor: Colors.surface, margin: 24, borderRadius: 16, padding: 24 },
   updateModalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginBottom: 6, textAlign: 'center' },
   updateModalBody: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  updateModalNotes: { fontSize: 12, color: Colors.textSecondary, marginTop: 12, lineHeight: 18, backgroundColor: Colors.background, borderRadius: 8, padding: 10 },
   versionFooter: { alignItems: 'center', paddingVertical: 28 },
   versionText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' },
   versionNumber: { fontSize: 12, color: Colors.border, marginTop: 4, letterSpacing: 0.5 },
