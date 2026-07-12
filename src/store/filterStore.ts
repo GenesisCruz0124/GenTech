@@ -10,7 +10,7 @@ interface FilterStore {
 }
 
 export const useFilterStore = create<FilterStore>((set, get) => ({
-  period: 'monthly',
+  period: 'all_time',
   targetDate: new Date(),
 
   setPeriod: (period) => set({ period, targetDate: new Date() }),
