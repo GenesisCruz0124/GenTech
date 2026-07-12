@@ -212,12 +212,33 @@ export default function RepairsListScreen() {
     load();
   }, [load]);
 
+  const isFiltered = !!search || selectedStatus !== null || selectedFilters.size > 0;
+
+  const derivedCounts = useMemo(() => {
+    if (!isFiltered) return null;
+    const counts = { pending: 0, in_progress: 0, ready: 0, delivered: 0, not_repaired: 0 };
+    let notPaid = 0;
+    for (const r of repairs) {
+      if (r.status in counts) counts[r.status as keyof typeof counts]++;
+      if (r.is_paid === 0 && r.status === 'delivered') notPaid++;
+    }
+    return { ...counts, notPaid, total: repairs.length };
+  }, [repairs, isFiltered]);
+
   const totalRepairs =
     (statusCounts.pending ?? 0) +
     (statusCounts.in_progress ?? 0) +
     (statusCounts.ready ?? 0) +
     (statusCounts.delivered ?? 0) +
     (statusCounts.not_repaired ?? 0);
+
+  const displayTotal   = isFiltered ? derivedCounts!.total        : totalRepairs;
+  const displayPending = isFiltered ? derivedCounts!.pending      : (statusCounts.pending ?? 0);
+  const displayInProg  = isFiltered ? derivedCounts!.in_progress  : (statusCounts.in_progress ?? 0);
+  const displayReady   = isFiltered ? derivedCounts!.ready        : (statusCounts.ready ?? 0);
+  const displayDeliv   = isFiltered ? derivedCounts!.delivered    : (statusCounts.delivered ?? 0);
+  const displayNotRep  = isFiltered ? derivedCounts!.not_repaired : (statusCounts.not_repaired ?? 0);
+  const displayNotPaid = isFiltered ? derivedCounts!.notPaid      : notPaidCount;
 
   const handleTilePress = (status: RepairStatus | 'not_paid' | null) => {
     setSelectedStatus(prev => prev === status ? null : status);
@@ -231,19 +252,19 @@ export default function RepairsListScreen() {
         onPress={() => setSelectedStatus(null)}
       >
         <MaterialCommunityIcons name="wrench-clock" size={20} color="#fff" />
-        <Text style={styles.totalCount}>{totalRepairs}</Text>
-        <Text style={styles.totalLabel}>Total Repairs</Text>
+        <Text style={styles.totalCount}>{displayTotal}</Text>
+        <Text style={styles.totalLabel}>{isFiltered ? 'Matching Repairs' : 'Total Repairs'}</Text>
         <MaterialCommunityIcons name="chevron-right" size={18} color="rgba(255,255,255,0.6)" style={{ marginLeft: 'auto' }} />
       </TouchableOpacity>
       <View style={styles.tileRow}>
-        <StatTile label="Pending"      count={statusCounts.pending ?? 0}      color="#FF6F00"              icon="clock-outline"        selected={selectedStatus === 'pending'}      onPress={() => handleTilePress('pending')} />
-        <StatTile label="In Progress"  count={statusCounts.in_progress ?? 0}  color={Colors.primary}       icon="wrench"               selected={selectedStatus === 'in_progress'}  onPress={() => handleTilePress('in_progress')} />
-        <StatTile label="Ready"        count={statusCounts.ready ?? 0}        color={Colors.success}       icon="check-circle-outline" selected={selectedStatus === 'ready'}        onPress={() => handleTilePress('ready')} />
+        <StatTile label="Pending"      count={displayPending} color="#FF6F00"              icon="clock-outline"        selected={selectedStatus === 'pending'}      onPress={() => handleTilePress('pending')} />
+        <StatTile label="In Progress"  count={displayInProg}  color={Colors.primary}       icon="wrench"               selected={selectedStatus === 'in_progress'}  onPress={() => handleTilePress('in_progress')} />
+        <StatTile label="Ready"        count={displayReady}   color={Colors.success}       icon="check-circle-outline" selected={selectedStatus === 'ready'}        onPress={() => handleTilePress('ready')} />
       </View>
       <View style={styles.tileRow}>
-        <StatTile label="Delivered"    count={statusCounts.delivered ?? 0}    color={Colors.textSecondary} icon="package-check"        selected={selectedStatus === 'delivered'}    onPress={() => handleTilePress('delivered')} />
-        <StatTile label="Not Repaired" count={statusCounts.not_repaired ?? 0} color={Colors.error}         icon="close-circle-outline" selected={selectedStatus === 'not_repaired'} onPress={() => handleTilePress('not_repaired')} />
-        <StatTile label="Not Paid"     count={notPaidCount}                   color={Colors.warning}       icon="cash-remove"          selected={selectedStatus === 'not_paid'}    onPress={() => handleTilePress('not_paid')} />
+        <StatTile label="Delivered"    count={displayDeliv}   color={Colors.textSecondary} icon="package-check"        selected={selectedStatus === 'delivered'}    onPress={() => handleTilePress('delivered')} />
+        <StatTile label="Not Repaired" count={displayNotRep}  color={Colors.error}         icon="close-circle-outline" selected={selectedStatus === 'not_repaired'} onPress={() => handleTilePress('not_repaired')} />
+        <StatTile label="Not Paid"     count={displayNotPaid} color={Colors.warning}       icon="cash-remove"          selected={selectedStatus === 'not_paid'}    onPress={() => handleTilePress('not_paid')} />
       </View>
     </View>
   );
