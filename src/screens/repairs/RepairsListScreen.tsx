@@ -69,7 +69,7 @@ export default function RepairsListScreen() {
   const [search, setSearch] = useState('');
   const [selectedFilters, setSelectedFilters] = useState<Set<FilterValue>>(new Set());
   const [selectedStatus, setSelectedStatus] = useState<RepairStatus | 'not_paid' | null>(null);
-  const [period, setPeriod] = useState<ReportPeriod>('monthly');
+  const [period, setPeriod] = useState<ReportPeriod>('all_time');
   const [targetDate, setTargetDate] = useState(new Date());
   const [customFrom, setCustomFrom] = useState(() => toIso(getWeekRange(new Date()).start));
   const [customTo, setCustomTo] = useState(() => toIso(new Date()));
