@@ -62,6 +62,7 @@ export default function RepairCard({ repair, onPress, onAdvanceStatus }: RepairC
             <MaterialCommunityIcons name="package-variant" size={11} color={Colors.primary} />
             <Text style={styles.partsTagText}>
               {repair.parts_count} {repair.parts_count === 1 ? 'part' : 'parts'}
+              {repair.parts_cost > 0 ? ` · ${formatCurrency(repair.parts_cost)}` : ''}
             </Text>
           </View>
         ) : null}
@@ -70,6 +71,7 @@ export default function RepairCard({ repair, onPress, onAdvanceStatus }: RepairC
             <MaterialCommunityIcons name="laptop" size={11} color="#7C3AED" />
             <Text style={styles.toolsTagText}>
               {repair.software_tools_count} {repair.software_tools_count === 1 ? 'tool' : 'tools'}
+              {repair.tools_cost > 0 ? ` · ${formatCurrency(repair.tools_cost)}` : ''}
             </Text>
           </View>
         ) : null}
