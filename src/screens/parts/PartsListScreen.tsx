@@ -451,6 +451,8 @@ export default function PartsListScreen() {
                   <View style={styles.priceRow}>
                     <Text style={styles.priceLabel}>Cost </Text>
                     <Text style={styles.priceVal}>{formatCurrency(item.cost_price)}</Text>
+                    <Text style={[styles.priceLabel, { marginLeft: 10 }]}>Sell </Text>
+                    <Text style={[styles.priceVal, { color: Colors.primary }]}>{formatCurrency(item.selling_price)}</Text>
                   </View>
                 </View>
 
