@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, KeyboardAvoidingView, Modal as RNModal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Badge, Button, Checkbox, Divider, FAB, IconButton, List, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
+import { Badge, Button, Checkbox, Divider, FAB, IconButton, List, Menu, Modal, Portal, Searchbar, Text, TextInput } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAnimatedTabTitle } from '../../hooks/useAnimatedTabTitle';
@@ -8,7 +8,7 @@ import { useLayoutEffect } from 'react';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { usePartsStore } from '../../store/partsStore';
-import { Part, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, deletePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, RestockStatus, getModelsWithActiveRepairs, getPartIdsWithPendingRestock } from '../../repositories/partsRepository';
+import { Part, PartsSortBy, getPartsPurchaseHistory, recordPartsPurchase, updatePartsPurchase, deletePartsPurchase, syncCostPriceFromLastPurchase, PartsPurchase, RestockStatus, getModelsWithActiveRepairs, getPartIdsWithPendingRestock } from '../../repositories/partsRepository';
 import { getAllCategories, Category } from '../../repositories/categoryRepository';
 import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import { getAllSuppliers, Supplier } from '../../repositories/supplierRepository';
@@ -25,11 +25,12 @@ const hdrBtnActive: any = { backgroundColor: 'rgba(255,255,255,0.4)' };
 
 export default function PartsListScreen() {
   const navigation = useNavigation<Nav>();
-  const { parts, isLoading, fetchParts } = usePartsStore();
+  const { parts, isLoading, fetchParts, sortBy, setSortBy } = usePartsStore();
   useAnimatedTabTitle(navigation, 'Stocks');
 
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterChipsVisible, setFilterChipsVisible] = useState(false);
+  const [sortMenuVisible, setSortMenuVisible] = useState(false);
   type FilterType = 'in_stock' | 'low_stock' | 'display' | 'battery' | 'active_repairs' | 'to_receive';
   const [filters, setFilters] = useState<Set<FilterType>>(new Set());
 
@@ -66,12 +67,36 @@ export default function PartsListScreen() {
             style={[hdrBtn, filterChipsVisible && filters.size > 0 && hdrBtnActive]}
             onPress={() => setFilterChipsVisible((v: boolean) => !v)}
           >
-            <MaterialCommunityIcons
-              name="filter-variant"
-              size={20}
-              color="#fff"
-            />
+            <MaterialCommunityIcons name="filter-variant" size={20} color="#fff" />
           </TouchableOpacity>
+          <Menu
+            visible={sortMenuVisible}
+            onDismiss={() => setSortMenuVisible(false)}
+            anchor={
+              <TouchableOpacity
+                style={[hdrBtn, sortBy !== 'name' && hdrBtnActive]}
+                onPress={() => setSortMenuVisible(true)}
+              >
+                <MaterialCommunityIcons name="sort-variant" size={20} color="#fff" />
+              </TouchableOpacity>
+            }
+          >
+            <Menu.Item
+              leadingIcon={sortBy === 'name' ? 'check' : undefined}
+              title="Alphabetically"
+              onPress={() => { setSortBy('name'); setSortMenuVisible(false); }}
+            />
+            <Menu.Item
+              leadingIcon={sortBy === 'created_at' ? 'check' : undefined}
+              title="Recently Added"
+              onPress={() => { setSortBy('created_at'); setSortMenuVisible(false); }}
+            />
+            <Menu.Item
+              leadingIcon={sortBy === 'last_restock' ? 'check' : undefined}
+              title="Recently Restocked"
+              onPress={() => { setSortBy('last_restock'); setSortMenuVisible(false); }}
+            />
+          </Menu>
           <TouchableOpacity
             style={hdrBtn}
             onPress={() => setSearchVisible((v: boolean) => !v)}
@@ -87,7 +112,7 @@ export default function PartsListScreen() {
         </View>
       ),
     });
-  }, [navigation, filterChipsVisible, filters, searchVisible, selectMode]);
+  }, [navigation, filterChipsVisible, filters, searchVisible, selectMode, sortMenuVisible, sortBy]);
 
   // Restock modal
   const [restockTarget, setRestockTarget] = useState<Part | null>(null);

@@ -52,8 +52,14 @@ export async function createPart(input: CreatePartInput): Promise<number> {
   return result.lastInsertRowId;
 }
 
-export async function getAllParts(): Promise<Part[]> {
+export type PartsSortBy = 'name' | 'created_at' | 'last_restock';
+
+export async function getAllParts(sortBy: PartsSortBy = 'name'): Promise<Part[]> {
   const db = await getDB();
+  const orderBy =
+    sortBy === 'created_at'   ? 'p.created_at DESC' :
+    sortBy === 'last_restock' ? '(SELECT MAX(pp.purchased_at) FROM parts_purchases pp WHERE pp.part_id = p.id) DESC' :
+                                'p.name ASC';
   return db.getAllAsync<Part>(
     `SELECT p.*, c.name as category_name, b.name as brand_name,
             COALESCE((SELECT SUM(pp.quantity * pp.cost_price)
@@ -61,7 +67,7 @@ export async function getAllParts(): Promise<Part[]> {
      FROM parts p
      LEFT JOIN categories c ON c.id = p.category_id
      LEFT JOIN device_brands b ON b.id = p.brand_id
-     ORDER BY p.name ASC`
+     ORDER BY ${orderBy}`
   );
 }
 

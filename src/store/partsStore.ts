@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   Part,
   CreatePartInput,
+  PartsSortBy,
   createPart,
   getAllParts,
   getPartById,
@@ -21,8 +22,10 @@ interface PartsStore {
   parts: Part[];
   lowStockParts: Part[];
   isLoading: boolean;
+  sortBy: PartsSortBy;
 
   fetchParts: () => Promise<void>;
+  setSortBy: (s: PartsSortBy) => Promise<void>;
   fetchLowStock: () => Promise<void>;
   addPart: (data: CreatePartInput) => Promise<number>;
   editPart: (id: number, data: Partial<CreatePartInput>) => Promise<void>;
@@ -42,10 +45,18 @@ export const usePartsStore = create<PartsStore>((set, get) => ({
   parts: [],
   lowStockParts: [],
   isLoading: false,
+  sortBy: 'name',
 
   fetchParts: async () => {
+    const { sortBy } = get();
     set({ isLoading: true });
-    const parts = await getAllParts();
+    const parts = await getAllParts(sortBy);
+    set({ parts, isLoading: false });
+  },
+
+  setSortBy: async (s) => {
+    set({ sortBy: s, isLoading: true });
+    const parts = await getAllParts(s);
     set({ parts, isLoading: false });
   },
 
