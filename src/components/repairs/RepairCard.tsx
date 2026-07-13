@@ -65,6 +65,14 @@ export default function RepairCard({ repair, onPress, onAdvanceStatus }: RepairC
             </Text>
           </View>
         ) : null}
+        {repair.software_tools_count > 0 ? (
+          <View style={styles.toolsTag}>
+            <MaterialCommunityIcons name="laptop" size={11} color="#7C3AED" />
+            <Text style={styles.toolsTagText}>
+              {repair.software_tools_count} {repair.software_tools_count === 1 ? 'tool' : 'tools'}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* ── Bottom: status, warranty, paid */}
@@ -147,6 +155,8 @@ const styles = StyleSheet.create({
   metaText: { fontSize: 10, color: Colors.textSecondary },
   partsTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.primary + '12', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
   partsTagText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
+  toolsTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#7C3AED12', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
+  toolsTagText: { fontSize: 10, fontWeight: '700', color: '#7C3AED' },
 
   // Bottom row
   bottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, flexWrap: 'wrap', gap: 6 },
