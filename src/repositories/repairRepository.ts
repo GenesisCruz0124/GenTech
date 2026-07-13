@@ -26,6 +26,7 @@ export interface RepairWithCustomer extends Repair {
   customer_name: string;
   customer_phone: string;
   customer_address: string | null;
+  parts_count: number;
 }
 
 export interface CreateRepairInput {
@@ -79,7 +80,8 @@ export async function createRepair(input: CreateRepairInput): Promise<number> {
 export async function getRepairById(id: number): Promise<RepairWithCustomer | null> {
   const db = await getDB();
   return db.getFirstAsync<RepairWithCustomer>(
-    `SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
+    `SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
+            (SELECT COUNT(*) FROM repair_parts rp WHERE rp.repair_id = r.id) as parts_count
      FROM repairs r
      JOIN customers c ON c.id = r.customer_id
      WHERE r.id = ?`,
@@ -122,7 +124,8 @@ export async function listRepairs(filter?: RepairFilter): Promise<RepairWithCust
   params.push(limit, offset);
 
   return db.getAllAsync<RepairWithCustomer>(
-    `SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address
+    `SELECT r.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
+            (SELECT COUNT(*) FROM repair_parts rp WHERE rp.repair_id = r.id) as parts_count
      FROM repairs r
      JOIN customers c ON c.id = r.customer_id
      ${where}

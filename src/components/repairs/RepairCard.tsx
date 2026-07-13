@@ -45,7 +45,7 @@ export default function RepairCard({ repair, onPress, onAdvanceStatus }: RepairC
         <Text style={styles.issue} numberOfLines={1}>{repair.issue_desc}</Text>
       ) : null}
 
-      {/* ── Meta row: time, location */}
+      {/* ── Meta row: time, location, parts */}
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
           <MaterialCommunityIcons name="clock-outline" size={11} color={Colors.textSecondary} />
@@ -55,6 +55,14 @@ export default function RepairCard({ repair, onPress, onAdvanceStatus }: RepairC
           <View style={styles.metaItem}>
             <MaterialCommunityIcons name="map-marker-outline" size={11} color={Colors.textSecondary} />
             <Text style={styles.metaText} numberOfLines={1}>{repair.customer_address}</Text>
+          </View>
+        ) : null}
+        {repair.parts_count > 0 ? (
+          <View style={styles.partsTag}>
+            <MaterialCommunityIcons name="package-variant" size={11} color={Colors.primary} />
+            <Text style={styles.partsTagText}>
+              {repair.parts_count} {repair.parts_count === 1 ? 'part' : 'parts'}
+            </Text>
           </View>
         ) : null}
       </View>
@@ -137,6 +145,8 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', gap: 12, marginTop: 6, flexWrap: 'wrap' },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaText: { fontSize: 10, color: Colors.textSecondary },
+  partsTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.primary + '12', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
+  partsTagText: { fontSize: 10, fontWeight: '700', color: Colors.primary },
 
   // Bottom row
   bottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, flexWrap: 'wrap', gap: 6 },
