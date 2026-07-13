@@ -34,6 +34,7 @@ export type RootStackParamList = {
   DeviceSaleDetail: { saleId: number };
   SyncSetup: undefined;
   Consumables: undefined;
+  SoftwareTools: undefined;
 };
 
 export type TabParamList = {

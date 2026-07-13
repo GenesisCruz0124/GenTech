@@ -11,6 +11,7 @@ export interface PeriodReport {
   purchase_expense: number;
   repair_parts_expense: number;
   consumable_expense: number;
+  software_tool_expense: number;
   total_expense: number;
   net_income: number;
   total_paid: number;
@@ -67,8 +68,9 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
   const f5 = currentPeriodFilter(period, 'payment_date', td, dateTo);
   const f6 = currentPeriodFilter(period, 'rpr.created_at', td, dateTo);
   const f7 = currentPeriodFilter(period, 'created_at', td, dateTo);
+  const f8 = currentPeriodFilter(period, 'rst.created_at', td, dateTo);
 
-  const [repairRows, saleRows, partsRows, purchaseRows, paidRows, repairPartsRows, consumableRows] = await Promise.all([
+  const [repairRows, saleRows, partsRows, purchaseRows, paidRows, repairPartsRows, consumableRows, softwareToolRows] = await Promise.all([
     // Gross income = estimated_cost of delivered repairs
     db.getAllAsync<{ period: string; amount: number }>(
       `SELECT strftime('${fmt}', created_at) as period, SUM(estimated_cost) as amount
@@ -112,6 +114,13 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
        FROM consumable_purchases WHERE ${f7}
        GROUP BY period ORDER BY period DESC`
     ),
+    // Software tools used in repairs
+    db.getAllAsync<{ period: string; amount: number }>(
+      `SELECT strftime('${fmt}', rst.created_at) as period, SUM(rst.cost) as amount
+       FROM repair_software_tools rst
+       WHERE ${f8}
+       GROUP BY period ORDER BY period DESC`
+    ),
   ]);
 
   // Merge all rows by period key
@@ -128,6 +137,7 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
         purchase_expense: 0,
         repair_parts_expense: 0,
         consumable_expense: 0,
+        software_tool_expense: 0,
         total_expense: 0,
         net_income: 0,
         total_paid: 0,
@@ -143,13 +153,14 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
   for (const row of partsRows)        { ensure(row.period).parts_expense         = round(row.amount); }
   for (const row of purchaseRows)     { ensure(row.period).purchase_expense      = round(row.amount); }
   for (const row of paidRows)         { ensure(row.period).total_paid            = round(row.amount); }
-  for (const row of repairPartsRows)  { ensure(row.period).repair_parts_expense  = round(row.amount); }
-  for (const row of consumableRows)   { ensure(row.period).consumable_expense    = round(row.amount); }
+  for (const row of repairPartsRows)   { ensure(row.period).repair_parts_expense   = round(row.amount); }
+  for (const row of consumableRows)    { ensure(row.period).consumable_expense     = round(row.amount); }
+  for (const row of softwareToolRows)  { ensure(row.period).software_tool_expense  = round(row.amount); }
 
   // Compute derived totals with rounding to avoid floating point drift
   const results = Array.from(map.values()).map(r => {
     r.gross_income  = round(r.repair_revenue + r.device_sale_revenue);
-    r.total_expense = round(r.purchase_expense + r.repair_parts_expense + r.consumable_expense);
+    r.total_expense = round(r.purchase_expense + r.repair_parts_expense + r.consumable_expense + r.software_tool_expense);
     r.net_income    = round(r.gross_income   - r.total_expense);
     return r;
   });
@@ -161,7 +172,7 @@ export async function getReportSummary(period: ReportPeriod, targetDate?: string
 
 export interface ExpenseItem {
   id: string;
-  type: 'parts' | 'device' | 'repair_part' | 'consumable';
+  type: 'parts' | 'device' | 'repair_part' | 'consumable' | 'software_tool';
   date: string;
   title: string;
   subtitle: string | null;
@@ -175,12 +186,13 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
   const deviceFilter = currentPeriodFilter(period, 'dp.purchased_at', targetDate ?? 'now', dateTo);
   const repairPartsFilter = currentPeriodFilter(period, 'rpr.created_at', targetDate ?? 'now', dateTo);
   const consumableFilter = currentPeriodFilter(period, 'created_at', targetDate ?? 'now', dateTo);
+  const softwareToolFilter = currentPeriodFilter(period, 'rst.created_at', targetDate ?? 'now', dateTo);
 
   const safe = async <T>(p: Promise<T[]>): Promise<T[]> => {
     try { return await p; } catch (e) { console.warn('getExpenseDetails subquery error:', e); return []; }
   };
 
-  const [partsRows, deviceRows, repairPartsRows, consumableRows] = await Promise.all([
+  const [partsRows, deviceRows, repairPartsRows, consumableRows, softwareToolRows] = await Promise.all([
     safe(db.getAllAsync<{ id: number; date: string; part_name: string; category_name: string | null; supplier_name: string | null; quantity: number; amount: number; repair_no: string | null }>(
       `SELECT pp.id, pp.purchased_at as date, p.name as part_name, c.name as category_name, pp.supplier_name, pp.quantity,
               pp.quantity * pp.cost_price as amount,
@@ -215,6 +227,15 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
        WHERE ${consumableFilter}
        ORDER BY created_at DESC`
     )),
+    safe(db.getAllAsync<{ id: number; date: string; tool_name: string; repair_no: string; amount: number }>(
+      `SELECT rst.id, rst.created_at as date, st.name as tool_name,
+              printf('RPN-%04d', r.id) as repair_no, rst.cost as amount
+       FROM repair_software_tools rst
+       JOIN software_tools st ON st.id = rst.tool_id
+       JOIN repairs r ON r.id = rst.repair_id
+       WHERE ${softwareToolFilter}
+       ORDER BY rst.created_at DESC`
+    )),
   ]);
 
   const items: ExpenseItem[] = [
@@ -233,6 +254,15 @@ export async function getExpenseDetails(period: ReportPeriod, targetDate?: strin
       title: r.part_name,
       subtitle: `Used in ${r.repair_no} · Qty ${r.quantity}`,
       amount: r.amount,
+    })),
+    ...softwareToolRows.map(r => ({
+      id: `software_tool-${r.id}`,
+      type: 'software_tool' as const,
+      date: r.date,
+      title: r.tool_name,
+      subtitle: `Software tool · ${r.repair_no}`,
+      amount: r.amount,
+      repair_no: r.repair_no,
     })),
     ...consumableRows.map(r => ({
       id: `consumable-${r.id}`,
@@ -584,7 +614,7 @@ export async function getIncomeTrend(months = 6): Promise<TrendPoint[]> {
 
   // Expense definition matches getTotalSummary: device purchases + repair parts used + consumables.
   // parts_purchases (stock restock) is intentionally excluded — shown separately as "Stock Purchase".
-  const [repairRows, saleRows, dpRows, rpRows, cpRows] = await Promise.all([
+  const [repairRows, saleRows, dpRows, rpRows, cpRows, stRows] = await Promise.all([
     safe(db.getAllAsync<{ p: string; v: number }>(
       `SELECT strftime('%Y-%m', created_at) p, SUM(estimated_cost) v
        FROM repairs WHERE status='delivered' AND strftime('%Y-%m',created_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
@@ -600,6 +630,9 @@ export async function getIncomeTrend(months = 6): Promise<TrendPoint[]> {
     safe(db.getAllAsync<{ p: string; v: number }>(
       `SELECT strftime('%Y-%m', created_at) p, SUM(quantity*unit_cost) v
        FROM consumable_purchases WHERE strftime('%Y-%m',created_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
+    safe(db.getAllAsync<{ p: string; v: number }>(
+      `SELECT strftime('%Y-%m', created_at) p, SUM(cost) v
+       FROM repair_software_tools WHERE strftime('%Y-%m',created_at) BETWEEN ? AND ? GROUP BY p`, [from, to])),
   ]);
 
   const inc: Record<string, number> = {};
@@ -609,6 +642,7 @@ export async function getIncomeTrend(months = 6): Promise<TrendPoint[]> {
   for (const r of dpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
   for (const r of rpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
   for (const r of cpRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
+  for (const r of stRows)     exp[r.p] = (exp[r.p] ?? 0) + (r.v ?? 0);
 
   return keys.map(key => {
     const [y, m] = key.split('-');

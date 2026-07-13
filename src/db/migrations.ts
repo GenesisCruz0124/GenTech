@@ -1491,6 +1491,23 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE consumable_purchases ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    version: 49,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS software_tools (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+      )`,
+      `CREATE TABLE IF NOT EXISTS repair_software_tools (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        repair_id  INTEGER NOT NULL REFERENCES repairs(id) ON DELETE CASCADE,
+        tool_id    INTEGER NOT NULL REFERENCES software_tools(id),
+        cost       REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+      )`,
+    ],
+  },
 ];
 
 // All tables that participate in multi-device sync (catalog/reference tables

@@ -20,6 +20,15 @@ import {
   PAYMENT_MODES,
 } from '../../repositories/repairPaymentRepository';
 import {
+  SoftwareTool,
+  RepairSoftwareTool,
+  listSoftwareTools,
+  addToolToRepair,
+  getToolsForRepair,
+  updateToolOnRepair,
+  removeToolFromRepair,
+} from '../../repositories/softwareToolsRepository';
+import {
   RepairImage,
   getRepairImages,
   saveRepairImage,
@@ -118,6 +127,16 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
   const [editPartPickerVisible, setEditPartPickerVisible] = useState(false);
   const [editPartsToAdd, setEditPartsToAdd] = useState<{ part: any; qty: number }[]>([]);
 
+  // Software tools
+  const [softwareTools, setSoftwareTools] = useState<RepairSoftwareTool[]>([]);
+  const [allSoftwareTools, setAllSoftwareTools] = useState<SoftwareTool[]>([]);
+  const [toolModalVisible, setToolModalVisible] = useState(false);
+  const [toolModalEditId, setToolModalEditId] = useState<number | null>(null);
+  const [toolModalTool, setToolModalTool] = useState<SoftwareTool | null>(null);
+  const [toolModalCost, setToolModalCost] = useState('');
+  const [toolPickerVisible, setToolPickerVisible] = useState(false);
+  const [toolPickerQuery, setToolPickerQuery] = useState('');
+
   // Add Part modal (standalone from repair detail)
   const [partModalVisible, setPartModalVisible] = useState(false);
   const [partModalEditId, setPartModalEditId] = useState<number | null>(null);
@@ -154,6 +173,9 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
     const paid = await getTotalPaid(repairId);
     setTotalPaid(paid);
     getAllParts().then(setAllPartsForEdit);
+    const [st, ast] = await Promise.all([getToolsForRepair(repairId), listSoftwareTools()]);
+    setSoftwareTools(st);
+    setAllSoftwareTools(ast);
   }, [repairId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -305,6 +327,7 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
   };
 
   const partsTotal = parts.reduce((sum, p) => sum + p.unit_price * p.quantity, 0);
+  const toolsTotal = softwareTools.reduce((sum, t) => sum + t.cost, 0);
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior="padding" keyboardVerticalOffset={80}>
@@ -784,6 +807,65 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
+        {/* ── SOFTWARE TOOLS ─────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardSectionLabel}>Software Tools</Text>
+          {softwareTools.length === 0 && (
+            <Text style={styles.partsEmptyText}>No software tools added yet</Text>
+          )}
+          {softwareTools.map((t, idx) => (
+            <View key={t.id}>
+              {idx > 0 && <View style={styles.rowDivider} />}
+              <View style={styles.partUsedRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.partUsedName}>{t.tool_name}</Text>
+                </View>
+                <Text style={styles.partUsedPrice}>{formatCurrency(t.cost)}</Text>
+                <TouchableOpacity style={styles.partUsedDelete} onPress={() => {
+                  setToolModalEditId(t.id);
+                  setToolModalTool({ id: t.tool_id, name: t.tool_name, created_at: t.created_at });
+                  setToolModalCost(String(t.cost));
+                  setToolPickerVisible(false);
+                  setToolPickerQuery('');
+                  setToolModalVisible(true);
+                }}>
+                  <MaterialCommunityIcons name="pencil-outline" size={18} color={Colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.partUsedDelete} onPress={() =>
+                  Alert.alert('Remove Tool', `Remove "${t.tool_name}" from this repair?`, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Remove', style: 'destructive', onPress: async () => {
+                      await removeToolFromRepair(t.id);
+                      setSoftwareTools(await getToolsForRepair(repairId));
+                    }},
+                  ])
+                }>
+                  <MaterialCommunityIcons name="trash-can-outline" size={18} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+          {softwareTools.length > 0 && (
+            <View style={styles.partsTotalRow}>
+              <Text style={styles.partsTotalLabel}>Tools Total</Text>
+              <Text style={styles.partsTotalValue}>{formatCurrency(toolsTotal)}</Text>
+            </View>
+          )}
+          <View style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: softwareTools.length === 0 ? 4 : 8 }}>
+            <Button mode="outlined" icon="plus" compact
+              onPress={() => {
+                setToolModalEditId(null);
+                setToolModalTool(null);
+                setToolModalCost('');
+                setToolPickerVisible(false);
+                setToolPickerQuery('');
+                setToolModalVisible(true);
+              }}>
+              Add Software Tool
+            </Button>
+          </View>
+        </View>
+
         {/* ── ACTION BUTTONS ─────────────────────────────── */}
         <View style={styles.actionsWrap}>
           {/* Advance status (pending / in_progress) */}
@@ -1211,6 +1293,109 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                   setPartModalVisible(false);
                   setPartModalEditId(null);
                 }}>
+                Confirm
+              </Button>
+            </View>
+          </ScrollView>
+        </Modal>
+      </Portal>
+
+      {/* ── SOFTWARE TOOL MODAL ────────────────────────── */}
+      <Portal>
+        <Modal
+          visible={toolModalVisible}
+          onDismiss={() => setToolModalVisible(false)}
+          contentContainerStyle={styles.modal}
+        >
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Text style={styles.modalTitle}>
+              {toolModalEditId ? 'Edit Software Tool' : 'Add Software Tool'}
+            </Text>
+
+            {toolModalEditId ? (
+              <View style={[styles.partPickerToggle, { marginBottom: 8 }]}>
+                <Text style={styles.partPickerSelected}>{toolModalTool?.name ?? 'Tool'}</Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.modalLabel}>Select Tool</Text>
+                <TouchableOpacity
+                  style={styles.partPickerToggle}
+                  onPress={() => setToolPickerVisible(v => !v)}
+                >
+                  <Text style={toolModalTool ? styles.partPickerSelected : styles.partPickerPlaceholder}>
+                    {toolModalTool ? toolModalTool.name : 'Tap to select a tool…'}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name={toolPickerVisible ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    color={Colors.primary}
+                  />
+                </TouchableOpacity>
+              </>
+            )}
+
+            {!toolModalEditId && toolPickerVisible && (
+              <View style={styles.editPartPicker}>
+                <TextInput
+                  mode="outlined"
+                  dense
+                  placeholder="Search tools…"
+                  value={toolPickerQuery}
+                  onChangeText={setToolPickerQuery}
+                  style={[styles.modalInput, { marginHorizontal: 8, marginTop: 6 }]}
+                />
+                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                  {allSoftwareTools
+                    .filter(t => t.name.toLowerCase().includes(toolPickerQuery.toLowerCase()))
+                    .map(t => (
+                      <TouchableOpacity
+                        key={t.id}
+                        style={styles.editPartPickerItem}
+                        onPress={() => {
+                          setToolModalTool(t);
+                          setToolPickerVisible(false);
+                        }}
+                      >
+                        <Text style={styles.partNameTxt}>{t.name}</Text>
+                      </TouchableOpacity>
+                    ))
+                  }
+                </ScrollView>
+              </View>
+            )}
+
+            <Text style={styles.modalLabel}>Cost ₱ (expense for this repair)</Text>
+            <TextInput
+              mode="outlined"
+              value={toolModalCost}
+              onChangeText={setToolModalCost}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              style={styles.modalInput}
+            />
+
+            <View style={styles.modalActions}>
+              <Button mode="outlined" onPress={() => setToolModalVisible(false)} style={styles.btnHalf}>
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                style={styles.btnHalf}
+                disabled={(!toolModalEditId && !toolModalTool) || !toolModalCost}
+                onPress={async () => {
+                  const cost = parseFloat(toolModalCost) || 0;
+                  if (toolModalEditId) {
+                    await updateToolOnRepair(toolModalEditId, cost);
+                  } else {
+                    if (!toolModalTool) return;
+                    await addToolToRepair(repairId, toolModalTool.id, cost);
+                  }
+                  setSoftwareTools(await getToolsForRepair(repairId));
+                  setToolModalVisible(false);
+                  setToolModalEditId(null);
+                }}
+              >
                 Confirm
               </Button>
             </View>

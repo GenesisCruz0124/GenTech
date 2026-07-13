@@ -364,6 +364,14 @@ export default function MoreMenuScreen() {
           onPress={() => navigation.navigate('Consumables')}
           style={styles.item}
         />
+        <List.Item
+          title="Software Tools"
+          description="Manage software tools used in repairs"
+          left={props => <List.Icon {...props} icon="laptop" color={Colors.primary} />}
+          right={props => <List.Icon {...props} icon="chevron-right" />}
+          onPress={() => navigation.navigate('SoftwareTools')}
+          style={styles.item}
+        />
       </List.Section>
 
       <Divider />
