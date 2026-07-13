@@ -130,6 +130,11 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "GenTech-v${defaultConfig.versionName}.apk"
+        }
+    }
     splits {
         abi {
             enable true
