@@ -48,7 +48,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'RepairDetail'>;
 export default function RepairDetailScreen({ route, navigation }: Props) {
   const { repairId } = route.params;
   const { advanceStatus, removeRepair, editRepair, setNotRepaired, deliver } = useRepairStore();
-  const { getForRepair, addToRepair, removeFromRepair, updateInRepair } = usePartsStore();
+  const { getForRepair, addToRepair, removeFromRepair, updateInRepair, editPart } = usePartsStore();
 
   const [repair, setRepair] = useState<RepairWithCustomer | null>(null);
   const [parts, setParts] = useState<any[]>([]);
@@ -798,8 +798,8 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                 setPartModalQty('1');
                 setPartModalActualCost('');
                 setPartModalCustomerPrice('');
-                setPartPickerVisible(false);
-                setPartPickerQuery('');
+                setPartPickerVisible(true);
+                setPartPickerQuery(repair.device_model ?? '');
                 setPartModalVisible(true);
               }}>
               Add Part
@@ -1287,6 +1287,10 @@ export default function RepairDetailScreen({ route, navigation }: Props) {
                   } else {
                     if (!partModalPart) return;
                     await addToRepair(repairId, partModalPart.id, qty, customerPrice, actualCost);
+                    const priceUpdate: any = {};
+                    if (actualCost > 0) priceUpdate.cost_price = actualCost;
+                    if (customerPrice > 0) priceUpdate.selling_price = customerPrice;
+                    if (Object.keys(priceUpdate).length > 0) await editPart(partModalPart.id, priceUpdate);
                   }
                   const updated = await getForRepair(repairId);
                   setParts(updated);
