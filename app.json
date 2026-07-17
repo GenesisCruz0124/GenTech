@@ -2,7 +2,7 @@
   "expo": {
     "name": "GenTech",
     "slug": "gentech-repair",
-    "version": "1.2.81",
+    "version": "1.2.82",
     "scheme": "gentech",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

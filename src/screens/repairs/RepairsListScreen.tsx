@@ -213,6 +213,9 @@ export default function RepairsListScreen() {
   }, [load]);
 
   const isFiltered = !!search || selectedStatus !== null || selectedFilters.size > 0;
+  // Only derive counts from the filtered list for text/panel filters — not status tile taps,
+  // so tapping "Ready" doesn't zero out all other tiles.
+  const isSearchFiltered = !!search || selectedFilters.size > 0;
 
   const derivedCounts = useMemo(() => {
     if (!isFiltered) return null;
@@ -232,13 +235,13 @@ export default function RepairsListScreen() {
     (statusCounts.delivered ?? 0) +
     (statusCounts.not_repaired ?? 0);
 
-  const displayTotal   = isFiltered ? derivedCounts!.total        : totalRepairs;
-  const displayPending = isFiltered ? derivedCounts!.pending      : (statusCounts.pending ?? 0);
-  const displayInProg  = isFiltered ? derivedCounts!.in_progress  : (statusCounts.in_progress ?? 0);
-  const displayReady   = isFiltered ? derivedCounts!.ready        : (statusCounts.ready ?? 0);
-  const displayDeliv   = isFiltered ? derivedCounts!.delivered    : (statusCounts.delivered ?? 0);
-  const displayNotRep  = isFiltered ? derivedCounts!.not_repaired : (statusCounts.not_repaired ?? 0);
-  const displayNotPaid = isFiltered ? derivedCounts!.notPaid      : notPaidCount;
+  const displayTotal   = isFiltered       ? derivedCounts!.total        : totalRepairs;
+  const displayPending = isSearchFiltered ? derivedCounts!.pending      : (statusCounts.pending ?? 0);
+  const displayInProg  = isSearchFiltered ? derivedCounts!.in_progress  : (statusCounts.in_progress ?? 0);
+  const displayReady   = isSearchFiltered ? derivedCounts!.ready        : (statusCounts.ready ?? 0);
+  const displayDeliv   = isSearchFiltered ? derivedCounts!.delivered    : (statusCounts.delivered ?? 0);
+  const displayNotRep  = isSearchFiltered ? derivedCounts!.not_repaired : (statusCounts.not_repaired ?? 0);
+  const displayNotPaid = isSearchFiltered ? derivedCounts!.notPaid      : notPaidCount;
 
   const handleTilePress = (status: RepairStatus | 'not_paid' | null) => {
     setSelectedStatus(prev => prev === status ? null : status);
