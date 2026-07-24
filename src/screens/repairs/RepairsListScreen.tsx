@@ -76,7 +76,7 @@ export default function RepairsListScreen() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [sortVisible, setSortVisible] = useState(false);
   const [sortBy, setSortBy] = useState<SortBy>('newest');
-  useAnimatedTabTitle(navigation, 'Repairs');
+  useAnimatedTabTitle(navigation, 'Dashboard');
 
   const sortedRepairs = useMemo(() => {
     const list = [...repairs];
