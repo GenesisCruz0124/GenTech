@@ -32,7 +32,7 @@ import { Part, getAllParts, autoCreatePartIfNotExists } from '../../repositories
 import { getLicenseStatus, getTrialCounts, TRIAL_LIMITS } from '../../services/licenseService';
 import { addRepairPart } from '../../repositories/partsRepository';
 import { DeviceModel, searchDeviceModels, createDeviceModel } from '../../repositories/deviceModelRepository';
-import { getAllDeviceBrands, DeviceBrand } from '../../repositories/deviceBrandRepository';
+import { getAllDeviceBrands, createDeviceBrand, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import { Colors } from '../../constants/colors';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NewRepair'>;
@@ -285,7 +285,11 @@ export default function NewRepairScreen({ navigation, route }: Props) {
       });
       // Save device model to list if it's new
       if (!selectedModelId && data.deviceModel.trim()) {
-        await createDeviceModel(data.deviceModel.trim(), selectedBrandId ?? undefined);
+        let brandIdToUse = selectedBrandId;
+        if (!selectedBrandId && brandName.trim()) {
+          brandIdToUse = await createDeviceBrand(brandName.trim());
+        }
+        await createDeviceModel(data.deviceModel.trim(), brandIdToUse ?? undefined);
       }
 
       const repairId = await addRepair({
@@ -431,6 +435,14 @@ export default function NewRepairScreen({ navigation, route }: Props) {
                         {m.brand_name ? <Text style={styles.suggestionPhone}>{m.brand_name}</Text> : null}
                       </TouchableOpacity>
                     ))}
+                    {!modelSuggestions.some(m => m.name.toLowerCase() === value.toLowerCase()) && (
+                      <TouchableOpacity
+                        style={[styles.suggestionItem, { borderTopWidth: 1, borderTopColor: Colors.border }]}
+                        onPress={() => setShowModelSuggestions(false)}
+                      >
+                        <Text style={[styles.suggestionName, { color: Colors.primary }]}>+ Use "{value}"</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
                 <HelperText type="error" visible={!!errors.deviceModel}>{errors.deviceModel?.message}</HelperText>
@@ -440,22 +452,57 @@ export default function NewRepairScreen({ navigation, route }: Props) {
 
           <View style={styles.fieldDivider} />
 
-          {/* Brand — auto-filled from selected model */}
+          {/* Brand */}
           <View style={styles.fieldGroup}>
             <View style={styles.fieldGroupHeader}>
               <View style={[styles.fieldGroupDot, { backgroundColor: Colors.primary }]} />
               <Text style={styles.fieldGroupLabel}>Brand</Text>
             </View>
-            <View style={styles.brandDisplay}>
-              <MaterialCommunityIcons
-                name={selectedBrandId ? 'check-circle' : 'information-outline'}
-                size={16}
-                color={selectedBrandId ? Colors.success : Colors.textSecondary}
-              />
-              <Text style={[styles.brandDisplayText, !selectedBrandId && { color: Colors.textSecondary, fontStyle: 'italic' }]}>
-                {brandName || 'Auto-filled when a model is selected'}
-              </Text>
-            </View>
+            {selectedBrandId ? (
+              <View style={[styles.brandDisplay, { justifyContent: 'space-between' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <MaterialCommunityIcons name="check-circle" size={16} color={Colors.success} />
+                  <Text style={styles.brandDisplayText}>{brandName}</Text>
+                </View>
+                <TouchableOpacity onPress={() => { setSelectedBrandId(null); setBrandName(''); setShowBrandSuggestions(false); }}>
+                  <MaterialCommunityIcons name="close-circle-outline" size={18} color={Colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  label="Brand (optional)"
+                  value={brandName}
+                  onChangeText={(text) => {
+                    setBrandName(text);
+                    if (text.length >= 1) {
+                      const filtered = brands.filter(b => b.name.toLowerCase().includes(text.toLowerCase()));
+                      setBrandSuggestions(filtered);
+                      setShowBrandSuggestions(filtered.length > 0);
+                    } else {
+                      setShowBrandSuggestions(false);
+                    }
+                  }}
+                  mode="outlined"
+                  style={styles.input}
+                  placeholder="e.g. Samsung, Apple, Realme"
+                />
+                {showBrandSuggestions && (
+                  <View style={styles.suggestionBox}>
+                    {brandSuggestions.slice(0, 6).map(b => (
+                      <TouchableOpacity key={b.id} style={styles.suggestionItem}
+                        onPress={() => {
+                          setSelectedBrandId(b.id);
+                          setBrandName(b.name);
+                          setShowBrandSuggestions(false);
+                        }}>
+                        <Text style={styles.suggestionName}>{b.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
           </View>
 
           <View style={styles.fieldDivider} />
