@@ -45,3 +45,10 @@ export function generateInvoiceNumber(lastId: number): string {
   const seq = String(lastId + 1).padStart(4, '0');
   return `INV-${year}-${seq}`;
 }
+
+export function localDateString(d: Date = new Date()): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}

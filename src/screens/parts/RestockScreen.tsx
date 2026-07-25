@@ -9,6 +9,7 @@ import { getAllSuppliers, createSupplier, Supplier } from '../../repositories/su
 import DatePickerField from '../../components/common/DatePickerField';
 import ImagePickerField from '../../components/common/ImagePickerField';
 import { Colors } from '../../constants/colors';
+import { localDateString } from '../../utils/formatters';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Restock'>;
 
@@ -21,8 +22,8 @@ export default function RestockScreen({ route, navigation }: Props) {
   const [supplierList, setSupplierList] = useState<Supplier[]>([]);
   const [supplierSuggestions, setSupplierSuggestions] = useState<Supplier[]>([]);
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split('T')[0]);
-  const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [purchaseDate, setPurchaseDate] = useState(localDateString());
+  const [receivedDate, setReceivedDate] = useState(localDateString());
   const [notes, setNotes] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [status, setStatus] = useState<RestockStatus>('received');

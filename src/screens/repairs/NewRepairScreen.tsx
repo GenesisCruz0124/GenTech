@@ -34,6 +34,7 @@ import { addRepairPart } from '../../repositories/partsRepository';
 import { DeviceModel, searchDeviceModels, createDeviceModel } from '../../repositories/deviceModelRepository';
 import { getAllDeviceBrands, createDeviceBrand, DeviceBrand } from '../../repositories/deviceBrandRepository';
 import { Colors } from '../../constants/colors';
+import { localDateString } from '../../utils/formatters';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NewRepair'>;
 
@@ -143,7 +144,7 @@ export default function NewRepairScreen({ navigation, route }: Props) {
   const { addRepair } = useRepairStore();
   const { upsertByPhone } = useCustomerStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dateRecorded, setDateRecorded] = useState(new Date().toISOString().split('T')[0]);
+  const [dateRecorded, setDateRecorded] = useState(localDateString());
   const [hasWarranty, setHasWarranty] = useState(false);
   const [warrantyUntil, setWarrantyUntil] = useState('');
   const [advanceAmount, setAdvanceAmount] = useState('');

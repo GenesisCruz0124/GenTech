@@ -17,7 +17,7 @@ import DatePickerField from '../../components/common/DatePickerField';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/common/EmptyState';
 import { Colors } from '../../constants/colors';
-import { formatCurrency, formatDateTime } from '../../utils/formatters';
+import { formatCurrency, formatDateTime, localDateString } from '../../utils/formatters';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 const hdrBtn: any = { padding: 5, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.18)' };
@@ -177,7 +177,7 @@ export default function PartsListScreen() {
     setRestockQty('1');
     setRestockCost(String(part.cost_price));
     setRestockSupplier('');
-    setRestockDate(new Date().toISOString().split('T')[0]);
+    setRestockDate(localDateString());
     setRestockNotes('');
     setRestockImage(null);
   };

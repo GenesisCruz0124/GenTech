@@ -1,5 +1,6 @@
 import { getDB } from '../db/database';
 import { trackInsert, trackUpdate, trackDelete, getUuid } from '../services/syncTrackHelpers';
+import { localDateString } from '../utils/formatters';
 
 export interface Part {
   id: number;
@@ -137,7 +138,7 @@ export async function recordPartsPurchase(input: {
   status?: RestockStatus;
 }): Promise<void> {
   const db = await getDB();
-  const purchased_at = input.purchased_at || new Date().toISOString().split('T')[0];
+  const purchased_at = input.purchased_at || localDateString();
   const status = input.status ?? 'received';
   const received_at = status === 'received' ? (input.received_at || purchased_at) : null;
   const result = await db.runAsync(
@@ -163,7 +164,7 @@ export async function updatePartsPurchaseStatus(id: number, status: RestockStatu
     [id]
   );
   if (!purchase || purchase.status === status) return;
-  const received_at = status === 'received' ? new Date().toISOString().split('T')[0] : null;
+  const received_at = status === 'received' ? localDateString() : null;
   await db.runAsync('UPDATE parts_purchases SET status = ?, received_at = ? WHERE id = ?', [status, received_at, id]);
   await trackUpdate(db, 'parts_purchases', id);
   // Adjust on-hand stock to reflect the arrival/un-arrival of this order.

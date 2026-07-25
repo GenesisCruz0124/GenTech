@@ -1,4 +1,5 @@
 import { getDB } from '../db/database';
+import { localDateString } from '../utils/formatters';
 
 export type ReportPeriod = 'all_time' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
@@ -43,7 +44,7 @@ function periodFormat(period: ReportPeriod): string {
 function currentPeriodFilter(period: ReportPeriod, dateCol: string, targetDate = 'now', dateTo?: string): string {
   if (period === 'all_time') return '1=1';
   if (period === 'custom') {
-    const from = targetDate === 'now' ? new Date().toISOString().split('T')[0] : targetDate;
+    const from = targetDate === 'now' ? localDateString() : targetDate;
     const to = dateTo ?? from;
     return `strftime('%Y-%m-%d', ${dateCol}) BETWEEN '${from}' AND '${to}'`;
   }
